@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Beer, ChevronRight, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill, Play, Plus,
-  RefreshCw, RotateCcw, Scissors, Search, SkipForward, Skull, Square, Syringe, Target, Trophy, X, Zap
+  Beer, ChevronDown, ChevronRight, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill,
+  Play, Plus, RefreshCw, RotateCcw, Scissors, Search, SkipForward, Skull, Square, Syringe, Target,
+  Trophy, X, Zap
 } from "lucide-react";
 import type {
   AnalyzeResult, EventDTO, FullState, GameStateDTO, ItemName, MoveDTO, ShellName, TurnName
@@ -523,7 +524,6 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
             )}
           </div>
           <div className="tracker">
-            <div className="tracker-cap">Shell order, tap to log what you learn</div>
             <div className="shells">
               {Array.from({ length: total }).map((_, i) => {
                 const s = state.known_shells[i] ?? null;
@@ -531,8 +531,8 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
                 const tip = `${i === 0 ? "Chamber (next shot)" : `Shell ${i + 1}`} is ${label}. Tap to cycle live, blank, unknown.`;
                 return (
                   <div key={i} className={`shell ${s === "LIVE" ? "l" : s === "BLANK" ? "b" : ""} ${i === 0 ? "ch" : ""}`} onClick={() => cycle(i)} title={tip}>
-                    <span className="n">{i + 1}</span>
-                    {i === 0 && <span className="chtag">next</span>}
+                    {i === 0 && <ChevronDown className="chpoint" size={14} />}
+                    {s === null && <span className="q">?</span>}
                   </div>
                 );
               })}
