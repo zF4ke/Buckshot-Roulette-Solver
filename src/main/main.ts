@@ -7,10 +7,10 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
 function createWindow(): void {
   const win = new BrowserWindow({
-    width: 1080,
-    height: 760,
+    width: 1160,
+    height: 860,
     minWidth: 960,
-    minHeight: 680,
+    minHeight: 700,
     backgroundColor: "#0e0b09",
     title: "Buckshot Roulette Solver",
     icon: path.join(__dirname, "../../assets/icon.ico"),
