@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Beer, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill, Play, Plus, RefreshCw,
-  RotateCcw, Scissors, Search, SkipForward, Skull, Square, Syringe, Target, Trophy, X, Zap
+  Beer, ChevronRight, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill, Play, Plus,
+  RefreshCw, RotateCcw, Scissors, Search, SkipForward, Skull, Square, Syringe, Target, Trophy, X, Zap
 } from "lucide-react";
 import type {
   AnalyzeResult, EventDTO, FullState, GameStateDTO, ItemName, MoveDTO, ShellName, TurnName
@@ -257,15 +257,21 @@ function LoadControls({ live, blank, onLive, onBlank }: { live: number; blank: n
 function Segmented<T extends string | number>(
   { options, value, onChange }: { options: { value: T; label: string; icon?: ReactNode }[]; value: T; onChange: (v: T) => void }
 ) {
+  // Measure each option's box ONCE (and on resize). On selection change only the
+  // index changes, so the thumb style updates in a normal render and the CSS
+  // transition animates (a layout-effect measure per change would teleport).
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [thumb, setThumb] = useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [boxes, setBoxes] = useState<{ x: number; y: number; w: number; h: number }[]>([]);
   const idx = Math.max(0, options.findIndex((o) => o.value === value));
-  const measure = useCallback(() => { const el = refs.current[idx]; if (el) setThumb({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }); }, [idx]);
+  const measure = useCallback(() => {
+    setBoxes(refs.current.map((el) => (el ? { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight } : { x: 0, y: 0, w: 0, h: 0 })));
+  }, []);
   useLayoutEffect(() => { measure(); }, [measure, options.length]);
   useEffect(() => { window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, [measure]);
+  const t = boxes[idx];
   return (
     <div className="seg">
-      <div className="seg-thumb" style={{ left: thumb.x, top: thumb.y, width: thumb.w, height: thumb.h }} />
+      {t && <div className="seg-thumb" style={{ left: t.x, top: t.y, width: t.w, height: t.h }} />}
       {options.map((o, i) => (
         <button key={String(o.value)} ref={(el) => { refs.current[i] = el; }} className={`seg-btn ${o.value === value ? "on" : ""}`} onClick={() => onChange(o.value)}>
           {o.icon}{o.label}
@@ -285,6 +291,18 @@ function ShellPick({ value, onPick }: { value?: ShellName; onPick: (s: "LIVE" | 
         <span className="shellgfx blank" /><span className="so-name">BLANK</span><span className="so-sub">harmless</span>
       </button>
     </div>
+  );
+}
+
+// render a move line, turning the " -> " separators into a chevron icon
+function MoveText({ text, size = 15 }: { text: string; size?: number }) {
+  const parts = text.split(" → ");
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={i}>{i > 0 && <ChevronRight className="movesep" size={size} />}{p}</span>
+      ))}
+    </>
   );
 }
 
@@ -362,13 +380,15 @@ function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
           <div className="setup-col">
             <div className="sec">
               <div className="sec-h">Items dealt</div>
-              <div className="invset">
-                <div className="inv-h"><Crosshair size={12} />You</div>
-                <ItemChips inv={d.player_items} onChange={(inv) => set({ player_items: inv })} />
-              </div>
-              <div className="invset">
-                <div className="inv-h"><Skull size={12} />Dealer</div>
-                <ItemChips inv={d.enemy_items} onChange={(inv) => set({ enemy_items: inv })} />
+              <div className="invs">
+                <div className="invset">
+                  <div className="inv-h"><Crosshair size={12} />You</div>
+                  <ItemChips inv={d.player_items} onChange={(inv) => set({ player_items: inv })} />
+                </div>
+                <div className="invset">
+                  <div className="inv-h"><Skull size={12} />Dealer</div>
+                  <ItemChips inv={d.enemy_items} onChange={(inv) => set({ enemy_items: inv })} />
+                </div>
               </div>
             </div>
           </div>
@@ -562,7 +582,7 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
           <div className="call-card">
             <div className="call-move">
               <ActionIcon type={top.action.type} item={top.action.item} size={19} />
-              <span className="txt">{moveText}</span>
+              <span className="txt"><MoveText text={moveText} size={16} /></span>
               <span className={`ev num ${top.expected_value >= 0 ? "pos" : "neg"}`}>{top.expected_value >= 0 ? "+" : ""}{top.expected_value.toFixed(0)}</span>
             </div>
             {isPlayer && <div className="call-why">{explain(top, state)}</div>}
@@ -573,7 +593,7 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
                 <div className="alt" key={m.label}>
                   <span className="alt-rank num">{i + 2}</span>
                   <ActionIcon type={m.action.type} item={m.action.item} size={14} />
-                  <span className="alt-move">{m.label}</span>
+                  <span className="alt-move"><MoveText text={m.label} size={13} /></span>
                   <span className={`alt-ev num ${m.expected_value >= 0 ? "pos" : "neg"}`}>{m.expected_value >= 0 ? "+" : ""}{m.expected_value.toFixed(0)}</span>
                 </div>
               ))}
