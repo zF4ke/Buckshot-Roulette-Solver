@@ -7,13 +7,14 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
 function createWindow(): void {
   const win = new BrowserWindow({
-    width: 1180,
-    height: 820,
-    minWidth: 900,
-    minHeight: 640,
+    width: 1080,
+    height: 760,
+    minWidth: 960,
+    minHeight: 680,
     backgroundColor: "#0e0b09",
     title: "Buckshot Roulette Solver",
     icon: path.join(__dirname, "../../assets/icon.ico"),
+    frame: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -22,9 +23,10 @@ function createWindow(): void {
     }
   });
 
-  if (!isDev) {
-    Menu.setApplicationMenu(null);
-  }
+  Menu.setApplicationMenu(null);
+
+  win.on("maximize", () => win.webContents.send("win:state", true));
+  win.on("unmaximize", () => win.webContents.send("win:state", false));
 
   if (isDev) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL!);
@@ -53,6 +55,13 @@ ipcMain.handle("solver:analyze", async (_e, level: number) => {
 ipcMain.handle("solver:state", async () => {
   return solverBridge.request("state", {});
 });
+
+ipcMain.on("win:minimize", (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
+ipcMain.on("win:maximize", (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w) w.isMaximized() ? w.unmaximize() : w.maximize();
+});
+ipcMain.on("win:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 
 app.whenReady().then(createWindow);
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AnalyzeResult, EventDTO, FullState, GameStateDTO, SolverApi } from "../shared/types";
+import type { AnalyzeResult, EventDTO, FullState, GameStateDTO, SolverApi, WindowApi } from "../shared/types";
 
 const api: SolverApi = {
   setState(state: GameStateDTO): Promise<FullState> {
@@ -20,3 +20,11 @@ const api: SolverApi = {
 };
 
 contextBridge.exposeInMainWorld("solver", api);
+
+const windowApi: WindowApi = {
+  minimize() { ipcRenderer.send("win:minimize"); },
+  maximize() { ipcRenderer.send("win:maximize"); },
+  close() { ipcRenderer.send("win:close"); }
+};
+
+contextBridge.exposeInMainWorld("win", windowApi);

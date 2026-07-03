@@ -106,8 +106,16 @@ export interface SolverApi {
   getState(): Promise<FullState>;
 }
 
+// Controlos da janela (barra de titulo personalizada).
+export interface WindowApi {
+  minimize(): void;
+  maximize(): void;
+  close(): void;
+}
+
 declare global {
   interface Window {
     solver: SolverApi;
+    win?: WindowApi;
   }
 }

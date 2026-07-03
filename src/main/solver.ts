@@ -18,13 +18,14 @@ function resolvePython(): string {
 }
 
 function resolveServiceScript(): string {
-  // Em dev os ficheiros .py estao na raiz do projeto; empacotado, ficam ao
-  // lado do executavel (ver package.json > build.files).
+  // Dev: the engine lives in ./engine. Packaged: it ships under
+  // resources/engine (see package.json > build.extraResources).
+  const rel = path.join("engine", "solver_service.py");
   const candidates = [
-    path.join(process.cwd(), "solver_service.py"),
-    path.join(__dirname, "..", "..", "solver_service.py"),
-    path.join(__dirname, "..", "..", "..", "solver_service.py"),
-    path.join(process.resourcesPath ?? "", "solver_service.py")
+    path.join(process.cwd(), rel),
+    path.join(__dirname, "..", "..", rel),
+    path.join(__dirname, "..", "..", "..", rel),
+    path.join(process.resourcesPath ?? "", rel)
   ];
   for (const candidate of candidates) {
     if (candidate && fs.existsSync(candidate)) {
