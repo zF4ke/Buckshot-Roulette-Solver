@@ -5,6 +5,9 @@ const api: SolverApi = {
   setState(state: GameStateDTO): Promise<FullState> {
     return ipcRenderer.invoke("solver:setState", state) as Promise<FullState>;
   },
+  updateState(state: GameStateDTO): Promise<FullState> {
+    return ipcRenderer.invoke("solver:updateState", state) as Promise<FullState>;
+  },
   applyEvent(event: EventDTO): Promise<FullState> {
     return ipcRenderer.invoke("solver:event", event) as Promise<FullState>;
   },

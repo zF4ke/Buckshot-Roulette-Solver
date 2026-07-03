@@ -140,30 +140,53 @@ export function App() {
   const levelRef = useRef(level);
   levelRef.current = level;
   const state = full?.state ?? null;
+  // Always-latest state, updated synchronously so rapid edits never read a stale
+  // value or get lost.
+  const stateRef = useRef<GameStateDTO | null>(null);
+  const editTimer = useRef<number | undefined>(undefined);
 
   const runAnalyze = useCallback(async () => {
     try { setAnalysis(await window.solver.analyze(levelRef.current)); } catch (e) { setError(String(e)); }
   }, []);
+  const commit = useCallback((res: FullState) => { stateRef.current = res.state; setFull(res); }, []);
+
   const pushState = useCallback(async (next: GameStateDTO) => {
     setBusy(true);
-    try { setFull(await window.solver.setState(next)); setError(null); await runAnalyze(); }
+    try { commit(await window.solver.setState(next)); setError(null); await runAnalyze(); }
     catch (e) { setError(String(e)); } finally { setBusy(false); }
-  }, [runAnalyze]);
+  }, [commit, runAnalyze]);
   const applyEvent = useCallback(async (event: EventDTO) => {
     setBusy(true);
-    try { setFull(await window.solver.applyEvent(event)); setError(null); await runAnalyze(); }
+    try { commit(await window.solver.applyEvent(event)); setError(null); await runAnalyze(); }
     catch (e) { setError(String(e)); } finally { setBusy(false); }
-  }, [runAnalyze]);
+  }, [commit, runAnalyze]);
   const undo = useCallback(async () => {
     setBusy(true);
-    try { setFull(await window.solver.undo()); await runAnalyze(); }
+    try { commit(await window.solver.undo()); await runAnalyze(); }
     catch (e) { setError(String(e)); } finally { setBusy(false); }
+  }, [commit, runAnalyze]);
+
+  // Manual edit: update the UI now, sync the engine (keeps the log) shortly after.
+  const syncEdit = useCallback(async () => {
+    const s = stateRef.current;
+    if (!s) return;
+    try { await window.solver.updateState(s); setError(null); await runAnalyze(); }
+    catch (e) { setError(String(e)); }
   }, [runAnalyze]);
+  const patch = useCallback((p: Partial<GameStateDTO>) => {
+    setFull((prev) => {
+      if (!prev) return prev;
+      const next: FullState = { ...prev, state: { ...prev.state, ...p } };
+      stateRef.current = next.state;
+      return next;
+    });
+    if (editTimer.current) window.clearTimeout(editTimer.current);
+    editTimer.current = window.setTimeout(() => { void syncEdit(); }, 90);
+  }, [syncEdit]);
 
   useEffect(() => { if (full) void runAnalyze(); }, [level]); // eslint-disable-line
 
   const startGame = useCallback(async (s: GameStateDTO) => { await pushState(s); setMode("play"); }, [pushState]);
-  const patch = useCallback((p: Partial<GameStateDTO>) => { if (state) void pushState({ ...state, ...p }); }, [state, pushState]);
 
   return (
     <div className="app">

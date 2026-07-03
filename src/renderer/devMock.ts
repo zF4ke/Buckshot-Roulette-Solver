@@ -41,6 +41,7 @@ const analysis: AnalyzeResult = {
 
 export const devMock: SolverApi = {
   async setState(s: GameStateDTO) { current = s; return fullState(); },
+  async updateState(s: GameStateDTO) { current = s; return fullState(); },
   async applyEvent(_e: EventDTO) { return fullState(); },
   async undo() { return fullState(); },
   async analyze(_level: number) { return analysis; },

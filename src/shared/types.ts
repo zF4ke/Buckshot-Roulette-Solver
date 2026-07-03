@@ -100,6 +100,7 @@ export interface EventDTO {
 // API exposta ao renderer via contextBridge.
 export interface SolverApi {
   setState(state: GameStateDTO): Promise<FullState>;
+  updateState(state: GameStateDTO): Promise<FullState>;
   applyEvent(event: EventDTO): Promise<FullState>;
   undo(): Promise<FullState>;
   analyze(level: number): Promise<AnalyzeResult>;

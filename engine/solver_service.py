@@ -79,7 +79,9 @@ def state_from_dto(dto):
     state.enemy_max_hp = int(dto.get("enemy_max_hp", state.enemy_hp) or state.enemy_hp)
     state.live_shells = int(dto.get("live_shells", 0))
     state.blank_shells = int(dto.get("blank_shells", 0))
-    state.known_shells = [str_to_shell(s) for s in dto.get("known_shells", [])]
+    # Nunca guardar mais balas conhecidas do que as que estao carregadas.
+    total = state.live_shells + state.blank_shells
+    state.known_shells = [str_to_shell(s) for s in dto.get("known_shells", [])][:total]
     state.player_items = items_from_dto(dto.get("player_items"))
     state.enemy_items = items_from_dto(dto.get("enemy_items"))
     state.turn = str_to_turn(dto.get("turn", "PLAYER"))
@@ -224,6 +226,12 @@ class Service:
             self.history = EventHistory()
             self.engine = GameEngine(self.history)
             self._snapshots = []
+            return self._full_response()
+
+        if cmd == "update_state":
+            # Correcao manual do estado (HP, balas, itens, camara). Ao contrario
+            # de set_state, mantem o historico e o undo da ronda intactos.
+            self.state = state_from_dto(message["state"])
             return self._full_response()
 
         if cmd == "event":

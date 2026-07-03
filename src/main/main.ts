@@ -40,6 +40,10 @@ ipcMain.handle("solver:setState", async (_e, state: GameStateDTO) => {
   return solverBridge.request("set_state", { state });
 });
 
+ipcMain.handle("solver:updateState", async (_e, state: GameStateDTO) => {
+  return solverBridge.request("update_state", { state });
+});
+
 ipcMain.handle("solver:event", async (_e, event: EventDTO) => {
   return solverBridge.request("event", { event });
 });
