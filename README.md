@@ -44,10 +44,12 @@ Buckshot Roulette hides one thing from you: the order of the shells. Everything 
 
 ### Quickstart
 
-1. **Install dependencies:** `npm install` (you also need Python 3.10+ on your PATH)
-2. **Run the app:** `npm run dev`
+1. **Download** the latest build from [Releases](https://github.com/zF4ke/Buckshot-Roulette-Solver/releases). On Windows it is a single portable `.exe`, no install.
+2. **Run it.** You need [Python 3.10+](https://www.python.org/downloads/) on your PATH; the app uses it to run the solver engine. Windows may warn about an unknown publisher, keep it.
 3. **Set up the round** on the New Game screen, then **Deal**.
 4. **Log what happens** each turn (a shot, an item, a pass) and read the call.
+
+(To run from source instead, see [For developers](#for-developers).)
 
 ### New Game
 
@@ -63,10 +65,6 @@ Start every round on a single screen: set each side's charges, the live and blan
 ### Engine strength
 
 A single dial controls how hard the solver thinks. It tells you, per position, whether your setting already gives the optimal move (most positions are solved perfectly even on a low setting) or whether a deep, item-heavy position would benefit from more. Level 7 is a good default.
-
-### Install a build
-
-If you do not want to run from source, download a build from [Releases](https://github.com/zF4ke/Buckshot-Roulette-Solver/releases). On Windows this is a portable `.exe`.
 
 ---
 
