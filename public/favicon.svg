@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8503f"/>
+      <stop offset="1" stop-color="#9c1c14"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#efb23c"/>
+      <stop offset="1" stop-color="#8a5e0a"/>
+    </linearGradient>
+  </defs>
+  <!-- dark rounded tile so the shell reads on any background -->
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#0c0806"/>
+  <g transform="rotate(-18 16 16)">
+    <!-- red hull -->
+    <rect x="10.5" y="4.5" width="11" height="15" rx="2.4" fill="url(#hull)"/>
+    <!-- crimp lines -->
+    <rect x="10.5" y="7.4" width="11" height="1.1" fill="#7a140d" opacity="0.65"/>
+    <rect x="10.5" y="10.2" width="11" height="1.1" fill="#7a140d" opacity="0.65"/>
+    <!-- highlight -->
+    <rect x="12.2" y="5.6" width="1.8" height="12.5" rx="0.9" fill="#ff8a6b" opacity="0.5"/>
+    <!-- brass base -->
+    <rect x="10" y="18" width="12" height="9.5" rx="2.2" fill="url(#brass)"/>
+    <rect x="10" y="18" width="12" height="1.4" fill="#ffd985" opacity="0.6"/>
+    <!-- primer -->
+    <circle cx="16" cy="24" r="2.1" fill="#5c3a05"/>
+    <circle cx="16" cy="24" r="0.9" fill="#c98f2a"/>
+  </g>
+</svg>
