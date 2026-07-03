@@ -11,8 +11,8 @@ function createWindow(): void {
     height: 820,
     minWidth: 900,
     minHeight: 640,
-    backgroundColor: "#0f0d0b",
-    title: "Buckshot Helper",
+    backgroundColor: "#0e0b09",
+    title: "Buckshot Roulette Solver",
     icon: path.join(__dirname, "../../assets/icon.ico"),
     autoHideMenuBar: true,
     webPreferences: {

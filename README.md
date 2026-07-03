@@ -1,4 +1,4 @@
-# Buckshot Roulette Helper
+# Buckshot Roulette Solver
 
 A fast **expectimax assistant** for *Buckshot Roulette*. Track the round as it
 happens and it tells you the strongest move, with the exact expected value of

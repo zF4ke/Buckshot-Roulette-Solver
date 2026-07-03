@@ -8,6 +8,56 @@ import type {
 } from "../shared/types";
 import { ITEM_NAMES } from "../shared/types";
 
+// ----------------------------------------------------------------- retro motion
+
+const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// count a number up to its target on change (retro digital readout)
+function useCountUp(target: number, ms = 460) {
+  const [val, setVal] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (reduced() || from.current === target) { from.current = target; setVal(target); return; }
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const e = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(a + (target - a) * e));
+      if (t < 1) raf = requestAnimationFrame(tick); else from.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return val;
+}
+
+// scramble/decode short text on change (retro terminal reveal)
+const GLYPHS = "#%&*+=/\\<>[]".split("");
+function useScramble(text: string, ms = 360) {
+  const [out, setOut] = useState(text);
+  useEffect(() => {
+    if (reduced() || !text) { setOut(text); return; }
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const shown = Math.floor(text.length * t);
+      let s = "";
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        s += (i < shown || c === " " || c === "→") ? c : GLYPHS[(i * 7 + Math.floor(now / 36)) % GLYPHS.length];
+      }
+      setOut(s);
+      if (t < 1) raf = requestAnimationFrame(tick); else setOut(text);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [text, ms]);
+  return out;
+}
+
 const ITEM_META: Record<ItemName, { label: string; short: string; icon: ReactNode; needsShell?: boolean; needsPhone?: boolean; needsMed?: boolean }> = {
   SAW: { label: "Hand Saw", short: "Hand Saw", icon: <Scissors size={14} /> },
   MAGNIFIER: { label: "Magnifying Glass", short: "Magnifier", icon: <Search size={14} />, needsShell: true },
@@ -116,7 +166,7 @@ export function App() {
   return (
     <div className="app">
       <div className="bar">
-        <div className="brand"><BrandMark />Buckshot Solver<small>companion</small></div>
+        <div className="brand"><BrandMark />Buckshot Roulette<small>solver</small></div>
         <div className="spacer" />
         <EngineControl level={level} setLevel={setLevel} analysis={analysis} />
       </div>
@@ -241,7 +291,8 @@ function Who({ name, you, act, hp, maxHp, onPick, onHp }: { name: string; you?: 
 // ----------------------------------------------------------------- shotgun
 
 function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<GameStateDTO>) => void }) {
-  const { known, liveP, blankP, total } = chamberInfo(state);
+  const { known, liveP, total } = chamberInfo(state);
+  const livePct = useCountUp(Math.round(liveP * 100));
   const cycle = (index: number) => {
     const arr: ShellName[] = [];
     for (let i = 0; i < total; i++) arr.push(state.known_shells[i] ?? null);
@@ -265,10 +316,10 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
             ) : (
               <>
                 <div className="pctline">
-                  <span className="pct live num">{Math.round(liveP * 100)}%</span>
+                  <span className="pct live">{livePct}%</span>
                   <span className="lab" style={{ color: "var(--accent)" }}>LIVE</span>
                 </div>
-                <div className="sub num">{Math.round(blankP * 100)}% chance of a blank</div>
+                <div className="sub num">{100 - livePct}% chance of a blank</div>
               </>
             )}
           </div>
@@ -299,6 +350,7 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
   const over = state.player_hp <= 0 || state.enemy_hp <= 0;
   const top = moves[0];
   const alts = moves.slice(1, 3);
+  const moveText = useScramble(top?.label ?? "");
 
   if (over) {
     return (
@@ -321,7 +373,7 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
           <div className="call-card">
             <div className="call-move">
               <ActionIcon type={top.action.type} item={top.action.item} size={19} />
-              <span className="txt">{top.label}</span>
+              <span className="txt">{moveText}</span>
               <span className={`ev num ${top.expected_value >= 0 ? "pos" : "neg"}`}>{top.expected_value >= 0 ? "+" : ""}{top.expected_value.toFixed(0)}</span>
             </div>
             {isPlayer && <div className="call-why">{explain(top, state)}</div>}
@@ -483,8 +535,8 @@ function LoadBlock({ state, patch }: { state: GameStateDTO; patch: (p: Partial<G
     <div>
       <div className="rail-h">Load</div>
       <div className="load">
-        <div className="c"><span className="dot l" /><span className="cl">Live</span><Stepper value={state.live_shells} min={0} max={8} onChange={(v) => patch({ live_shells: v })} /></div>
-        <div className="c"><span className="dot b" /><span className="cl">Blank</span><Stepper value={state.blank_shells} min={0} max={8} onChange={(v) => patch({ blank_shells: v })} /></div>
+        <div className="c"><span className="pip-dot l" /><span className="cl">Live</span><Stepper value={state.live_shells} min={0} max={8} onChange={(v) => patch({ live_shells: v })} /></div>
+        <div className="c"><span className="pip-dot b" /><span className="cl">Blank</span><Stepper value={state.blank_shells} min={0} max={8} onChange={(v) => patch({ blank_shells: v })} /></div>
       </div>
     </div>
   );

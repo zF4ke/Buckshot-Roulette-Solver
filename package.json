@@ -1,10 +1,10 @@
 {
-  "name": "buckshot-roulette-helper",
+  "name": "buckshot-roulette-solver",
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "author": "Pedro Silva",
-  "description": "Buckshot Roulette Helper — a fast expectimax assistant that tracks the round and recommends the strongest move.",
+  "description": "Buckshot Roulette Solver, a fast expectimax assistant that tracks the round and recommends the strongest move.",
   "main": "dist-electron/main/main.js",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
@@ -17,8 +17,8 @@
     "dist": "npm run build && electron-builder"
   },
   "build": {
-    "appId": "com.zf4ke.buckshot-helper",
-    "productName": "Buckshot Helper",
+    "appId": "com.zf4ke.buckshot-roulette-solver",
+    "productName": "Buckshot Roulette Solver",
     "directories": {
       "output": "release"
     },
@@ -43,6 +43,9 @@
     }
   },
   "dependencies": {
+    "@fontsource/dotgothic16": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@fontsource/space-mono": "^5.2.9",
     "lucide-react": "^0.460.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
