@@ -25,8 +25,14 @@
     "files": [
       "dist-electron",
       "dist-renderer",
-      "assets/**/*",
-      "*.py"
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".",
+        "to": ".",
+        "filter": ["*.py"]
+      }
     ],
     "win": {
       "target": "portable",

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Beer, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill, Plus, RefreshCw,
+  Beer, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill, Play, Plus, RefreshCw,
   RotateCcw, Scissors, Search, SkipForward, Skull, Syringe, Target, Trophy, Zap
 } from "lucide-react";
 import type {
@@ -12,7 +12,6 @@ import { ITEM_NAMES } from "../shared/types";
 
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// count a number up to its target on change (retro digital readout)
 function useCountUp(target: number, ms = 460) {
   const [val, setVal] = useState(target);
   const from = useRef(target);
@@ -33,7 +32,6 @@ function useCountUp(target: number, ms = 460) {
   return val;
 }
 
-// scramble/decode short text on change (retro terminal reveal)
 const GLYPHS = "#%&*+=/\\<>[]".split("");
 function useScramble(text: string, ms = 360) {
   const [out, setOut] = useState(text);
@@ -57,6 +55,8 @@ function useScramble(text: string, ms = 360) {
   }, [text, ms]);
   return out;
 }
+
+// ----------------------------------------------------------------- metadata
 
 const ITEM_META: Record<ItemName, { label: string; short: string; icon: ReactNode; needsShell?: boolean; needsPhone?: boolean; needsMed?: boolean }> = {
   SAW: { label: "Hand Saw", short: "Hand Saw", icon: <Scissors size={14} /> },
@@ -130,6 +130,7 @@ function cleanSummary(s: string): string {
 // ----------------------------------------------------------------- app
 
 export function App() {
+  const [mode, setMode] = useState<"setup" | "play">("setup");
   const [full, setFull] = useState<FullState | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzeResult | null>(null);
   const [level, setLevel] = useState(7);
@@ -158,9 +159,9 @@ export function App() {
     catch (e) { setError(String(e)); } finally { setBusy(false); }
   }, [runAnalyze]);
 
-  useEffect(() => { void pushState(DEFAULT_STATE); }, [pushState]);
   useEffect(() => { if (full) void runAnalyze(); }, [level]); // eslint-disable-line
 
+  const startGame = useCallback(async (s: GameStateDTO) => { await pushState(s); setMode("play"); }, [pushState]);
   const patch = useCallback((p: Partial<GameStateDTO>) => { if (state) void pushState({ ...state, ...p }); }, [state, pushState]);
 
   return (
@@ -168,16 +169,19 @@ export function App() {
       <div className="bar">
         <div className="brand"><BrandMark />Buckshot Roulette<small>solver</small></div>
         <div className="spacer" />
-        <EngineControl level={level} setLevel={setLevel} analysis={analysis} />
+        {mode === "play" && <EngineControl level={level} setLevel={setLevel} analysis={analysis} />}
       </div>
       {error && <div className="banner err"><Skull size={14} />{error}</div>}
-      {state && (
+
+      {mode === "setup" ? (
+        <Setup onDeal={startGame} />
+      ) : state && (
         <div className="main">
           <div className="stage">
             <Combatants state={state} patch={patch} />
             <Shotgun state={state} patch={patch} />
             <Call analysis={analysis} state={state} busy={busy} />
-            <Actions state={state} applyEvent={applyEvent} undo={undo} onNewRound={() => pushState(DEFAULT_STATE)} />
+            <Actions state={state} applyEvent={applyEvent} undo={undo} onNewGame={() => setMode("setup")} />
           </div>
           <div className="rail">
             <LoadBlock state={state} patch={patch} />
@@ -190,7 +194,7 @@ export function App() {
   );
 }
 
-// ----------------------------------------------------------------- brand + engine
+// ----------------------------------------------------------------- shared bits
 
 function BrandMark() {
   return (
@@ -204,6 +208,160 @@ function BrandMark() {
     </svg>
   );
 }
+
+function Stepper({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
+  return (
+    <div className="step">
+      <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label="decrease"><Minus size={14} /></button>
+      <span className="v">{value}</span>
+      <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label="increase"><Plus size={14} /></button>
+    </div>
+  );
+}
+
+function Segmented<T extends string | number>(
+  { options, value, onChange }: { options: { value: T; label: string; icon?: ReactNode }[]; value: T; onChange: (v: T) => void }
+) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [thumb, setThumb] = useState({ x: 0, w: 0 });
+  const idx = Math.max(0, options.findIndex((o) => o.value === value));
+  const measure = useCallback(() => { const el = refs.current[idx]; if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth }); }, [idx]);
+  useLayoutEffect(() => { measure(); }, [measure, options.length]);
+  useEffect(() => { window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, [measure]);
+  return (
+    <div className="seg">
+      <div className="seg-thumb" style={{ transform: `translateX(${thumb.x}px)`, width: thumb.w }} />
+      {options.map((o, i) => (
+        <button key={String(o.value)} ref={(el) => { refs.current[i] = el; }} className={`seg-btn ${o.value === value ? "on" : ""}`} onClick={() => onChange(o.value)}>
+          {o.icon}{o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// two recognizable shells: red live vs steel blank
+function ShellPick({ value, onPick }: { value?: ShellName; onPick: (s: "LIVE" | "BLANK") => void }) {
+  return (
+    <div className="shellpick">
+      <button className={`shellopt live ${value === "LIVE" ? "on" : ""}`} onClick={() => onPick("LIVE")}>
+        <span className="shellgfx live" />
+        <span className="so-name">LIVE</span>
+        <span className="so-sub">deals damage</span>
+      </button>
+      <button className={`shellopt blank ${value === "BLANK" ? "on" : ""}`} onClick={() => onPick("BLANK")}>
+        <span className="shellgfx blank" />
+        <span className="so-name">BLANK</span>
+        <span className="so-sub">harmless</span>
+      </button>
+    </div>
+  );
+}
+
+function ActionIcon({ type, item, size = 16 }: { type: string; item: ItemName | null; size?: number }) {
+  if (type === "SHOOT_ENEMY") return <span className="ico aim"><Crosshair size={size} /></span>;
+  if (type === "SHOOT_SELF") return <span className="ico self"><Target size={size} /></span>;
+  if (item) return <span className="ico item">{ITEM_META[item].icon}</span>;
+  return <span className="ico item"><SkipForward size={size} /></span>;
+}
+
+function ItemColumn({ title, icon, inv, onChange }: { title: string; icon: ReactNode; inv: Record<ItemName, number>; onChange: (inv: Record<ItemName, number>) => void }) {
+  const set = (item: ItemName, v: number) => onChange({ ...inv, [item]: Math.max(0, Math.min(8, v)) });
+  return (
+    <div>
+      <div className="inv-h">{icon}{title}</div>
+      <div className="inv">
+        {ITEM_NAMES.map((name) => (
+          <div className={`it ${inv[name] > 0 ? "on" : "off"}`} key={name}>
+            <span className="ii">{ITEM_META[name].icon}</span>
+            <span className="in">{ITEM_META[name].short}</span>
+            <div className="step">
+              <button onClick={() => set(name, inv[name] - 1)} disabled={inv[name] <= 0}><Minus size={12} /></button>
+              <span className="v">{inv[name]}</span>
+              <button onClick={() => set(name, inv[name] + 1)}><Plus size={12} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------- setup / new game
+
+function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
+  const [d, setD] = useState<GameStateDTO>(() => ({ ...DEFAULT_STATE, player_items: emptyInv(), enemy_items: emptyInv(), known_shells: [] }));
+  const set = (p: Partial<GameStateDTO>) => setD((prev) => ({ ...prev, ...p }));
+  const total = d.live_shells + d.blank_shells;
+
+  return (
+    <div className="setup-wrap">
+      <div className="setup">
+        <div className="setup-title">
+          <h1 className="crt">New Game</h1>
+          <p>Enter what you can see at the start of the round, then deal.</p>
+        </div>
+
+        <div className="sec">
+          <div className="sec-h">Charges</div>
+          <div className="sec-row">
+            <HpCard you name="You" hp={d.player_hp} onHp={(v) => set({ player_hp: v, player_max_hp: Math.max(v, d.player_max_hp) })} />
+            <HpCard name="Dealer" hp={d.enemy_hp} onHp={(v) => set({ enemy_hp: v, enemy_max_hp: Math.max(v, d.enemy_max_hp) })} />
+          </div>
+        </div>
+
+        <div className="sec">
+          <div className="sec-h">The load</div>
+          <div className="load">
+            <div className="c"><span className="pip-dot l" /><span className="cl">Live</span><Stepper value={d.live_shells} min={0} max={8} onChange={(v) => set({ live_shells: v })} /></div>
+            <div className="c"><span className="pip-dot b" /><span className="cl">Blank</span><Stepper value={d.blank_shells} min={0} max={8} onChange={(v) => set({ blank_shells: v })} /></div>
+          </div>
+          <div className="load-preview">
+            {Array.from({ length: d.live_shells }).map((_, i) => <span key={"l" + i} className="shellgfx sm live" />)}
+            {Array.from({ length: d.blank_shells }).map((_, i) => <span key={"b" + i} className="shellgfx sm blank" />)}
+            {total === 0 && <span className="empty">No shells yet.</span>}
+          </div>
+        </div>
+
+        <div className="sec">
+          <div className="sec-h">Items dealt</div>
+          <div className="setup-invs">
+            <ItemColumn title="You" icon={<Crosshair size={12} />} inv={d.player_items} onChange={(inv) => set({ player_items: inv })} />
+            <ItemColumn title="Dealer" icon={<Skull size={12} />} inv={d.enemy_items} onChange={(inv) => set({ enemy_items: inv })} />
+          </div>
+        </div>
+
+        <div className="sec">
+          <div className="sec-h">Who shoots first</div>
+          <div className="turn-seg">
+            <Segmented<TurnName>
+              options={[{ value: "PLAYER", label: "You", icon: <Crosshair size={13} /> }, { value: "ENEMY", label: "Dealer", icon: <Skull size={13} /> }]}
+              value={d.turn} onChange={(t) => set({ turn: t })}
+            />
+          </div>
+        </div>
+
+        <div className="setup-go">
+          <button className="btn primary big" disabled={total === 0} onClick={() => onDeal(d)}><Play size={16} />Deal the round</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HpCard({ name, you, hp, onHp }: { name: string; you?: boolean; hp: number; onHp: (v: number) => void }) {
+  return (
+    <div className="hp-card">
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="who-name">{you ? <Crosshair size={13} /> : <Skull size={13} />}{name}</div>
+        <div className="hearts">{Array.from({ length: Math.max(hp, 1) }).map((_, i) => <span key={i} className={`heart ${i < hp ? "" : "off"}`}><Heart size={15} fill={i < hp ? "currentColor" : "none"} /></span>)}</div>
+      </div>
+      <Stepper value={hp} min={1} max={12} onChange={onHp} />
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------- engine control
 
 function EngineControl({ level, setLevel, analysis }: { level: number; setLevel: (n: number) => void; analysis: AnalyzeResult | null }) {
   const [open, setOpen] = useState(false);
@@ -249,13 +407,6 @@ function EngineControl({ level, setLevel, analysis }: { level: number; setLevel:
       )}
     </div>
   );
-}
-
-function ActionIcon({ type, item, size = 16 }: { type: string; item: ItemName | null; size?: number }) {
-  if (type === "SHOOT_ENEMY") return <span className="ico aim"><Crosshair size={size} /></span>;
-  if (type === "SHOOT_SELF") return <span className="ico self"><Target size={size} /></span>;
-  if (item) return <span className="ico item">{ITEM_META[item].icon}</span>;
-  return <span className="ico item"><SkipForward size={size} /></span>;
 }
 
 // ----------------------------------------------------------------- combatants
@@ -305,18 +456,18 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
     <div className="gun">
       <div className="head">The Shotgun</div>
       {total === 0 ? (
-        <div className="empty">No shells loaded. Set the counts in the panel on the right.</div>
+        <div className="empty">No shells loaded.</div>
       ) : (
         <>
           <div className="gun-odds">
             {known ? (
               <div className={`knownchamber ${known === "LIVE" ? "live" : "blank"}`}>
-                {known === "LIVE" ? <Crosshair size={18} /> : <Target size={18} />}Chamber is {known === "LIVE" ? "LIVE" : "a BLANK"}
+                {known === "LIVE" ? <Crosshair size={20} /> : <Target size={20} />}Chamber is {known === "LIVE" ? "LIVE" : "a BLANK"}
               </div>
             ) : (
               <>
                 <div className="pctline">
-                  <span className="pct live">{livePct}%</span>
+                  <span className="pct live crt">{livePct}%</span>
                   <span className="lab" style={{ color: "var(--accent)" }}>LIVE</span>
                 </div>
                 <div className="sub num">{100 - livePct}% chance of a blank</div>
@@ -398,19 +549,25 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
 
 // ----------------------------------------------------------------- actions
 
-type Mode = null | "shoot-self" | "shoot-enemy" | "item";
+type Panel = null | "shoot-self" | "shoot-enemy" | "item";
 
-function Actions({ state, applyEvent, undo, onNewRound }: { state: GameStateDTO; applyEvent: (e: EventDTO) => void; undo: () => void; onNewRound: () => void }) {
+function Actions({ state, applyEvent, undo, onNewGame }: { state: GameStateDTO; applyEvent: (e: EventDTO) => void; undo: () => void; onNewGame: () => void }) {
   const actor = state.turn;
   const isPlayer = actor === "PLAYER";
-  const [mode, setMode] = useState<Mode>(null);
+  const [panel, setPanel] = useState<Panel>(null);
   const [item, setItem] = useState<ItemName | "">("");
   const [shell, setShell] = useState<ShellName>(null);
   const [phonePos, setPhonePos] = useState(2);
   const [medDelta, setMedDelta] = useState(2);
   const [adrTarget, setAdrTarget] = useState<ItemName | "">("");
-  const reset = () => { setMode(null); setItem(""); setShell(null); setPhonePos(2); setMedDelta(2); setAdrTarget(""); };
+  const reset = () => { setPanel(null); setItem(""); setShell(null); setPhonePos(2); setMedDelta(2); setAdrTarget(""); };
   useEffect(() => { reset(); }, [actor]); // eslint-disable-line
+  const revealRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!panel) return;
+    const id = requestAnimationFrame(() => revealRef.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" }));
+    return () => cancelAnimationFrame(id);
+  }, [panel]);
 
   const actorInv = isPlayer ? state.player_items : state.enemy_items;
   const oppInv = isPlayer ? state.enemy_items : state.player_items;
@@ -435,27 +592,24 @@ function Actions({ state, applyEvent, undo, onNewRound }: { state: GameStateDTO;
   return (
     <div className="call" style={{ gap: 14 }}>
       <div className="acts">
-        <button className="btn" onClick={() => { reset(); setMode("shoot-enemy"); }}><Crosshair size={15} />Shoot {isPlayer ? "dealer" : "you"}</button>
-        <button className="btn" onClick={() => { reset(); setMode("shoot-self"); }}><Target size={15} />Shoot {isPlayer ? "self" : "itself"}</button>
-        <button className="btn" disabled={owned.length === 0} onClick={() => { reset(); setMode("item"); }}><Zap size={15} />Use item</button>
-        <button className="btn ghost" onClick={() => applyEvent({ actor, event_type: "END_TURN" })}><SkipForward size={14} />Pass</button>
-        <button className="btn ghost" onClick={undo}><RotateCcw size={13} />Undo</button>
-        <button className="btn ghost" onClick={onNewRound}><RefreshCw size={13} />New round</button>
+        <button className="btn" onClick={() => { reset(); setPanel("shoot-enemy"); }}><Crosshair size={16} />Shoot {isPlayer ? "dealer" : "you"}</button>
+        <button className="btn" onClick={() => { reset(); setPanel("shoot-self"); }}><Target size={16} />Shoot {isPlayer ? "self" : "itself"}</button>
+        <button className="btn" disabled={owned.length === 0} onClick={() => { reset(); setPanel("item"); }}><Zap size={16} />Use item</button>
+        <button className="btn ghost" onClick={() => applyEvent({ actor, event_type: "END_TURN" })}><SkipForward size={15} />Pass</button>
+        <button className="btn ghost" onClick={undo}><RotateCcw size={14} />Undo</button>
+        <button className="btn ghost" onClick={onNewGame}><RefreshCw size={14} />New game</button>
       </div>
 
-      <div className={`reveal ${mode ? "open" : ""}`}><div>
-        {(mode === "shoot-self" || mode === "shoot-enemy") && (
+      <div className={`reveal ${panel ? "open" : ""}`} ref={revealRef}><div>
+        {(panel === "shoot-self" || panel === "shoot-enemy") && (
           <div className="detail">
-            <div className="mini">What came out of the chamber</div>
-            {chamberKnown && <div className="hint">Your tracker says <b style={{ color: chamberKnown === "LIVE" ? "var(--accent)" : "var(--blank)" }}>{chamberKnown}</b>.</div>}
-            <div className="acts" style={{ justifyContent: "flex-start" }}>
-              <button className="btn live" onClick={() => shoot(mode === "shoot-self" ? actor : opponent, "LIVE")}>Live round</button>
-              <button className="btn blank" onClick={() => shoot(mode === "shoot-self" ? actor : opponent, "BLANK")}>Blank</button>
-              <button className="btn ghost" onClick={reset}>Cancel</button>
-            </div>
+            <div className="detail-title">What came out of the chamber?</div>
+            {chamberKnown && <div className="hint">Your tracker expects a <b style={{ color: chamberKnown === "LIVE" ? "var(--accent)" : "var(--blank)" }}>{chamberKnown}</b>.</div>}
+            <ShellPick onPick={(sh) => shoot(panel === "shoot-self" ? actor : opponent, sh)} />
+            <div className="acts"><button className="btn ghost sm" onClick={reset}>Cancel</button></div>
           </div>
         )}
-        {mode === "item" && (
+        {panel === "item" && (
           <div className="detail">
             <div className="field">
               <div className="mini">Which item</div>
@@ -477,10 +631,7 @@ function Actions({ state, applyEvent, undo, onNewRound }: { state: GameStateDTO;
             {meta?.needsShell && (
               <div className="field">
                 <div className="mini">{effItem === "INVERTER" ? "Chamber before flipping" : effItem === "BEER" ? "Shell ejected" : "Shell revealed"}</div>
-                <div className="acts" style={{ justifyContent: "flex-start" }}>
-                  <button className={`btn sm ${shell === "LIVE" ? "on-live" : ""}`} onClick={() => setShell("LIVE")}>Live</button>
-                  <button className={`btn sm ${shell === "BLANK" ? "on-blank" : ""}`} onClick={() => setShell("BLANK")}>Blank</button>
-                </div>
+                <ShellPick value={shell} onPick={setShell} />
               </div>
             )}
             {meta?.needsPhone && (
@@ -491,39 +642,26 @@ function Actions({ state, applyEvent, undo, onNewRound }: { state: GameStateDTO;
                 </div>
                 <div className="field">
                   <div className="mini">That shell is</div>
-                  <div className="acts" style={{ justifyContent: "flex-start" }}>
-                    <button className={`btn sm ${shell === "LIVE" ? "on-live" : ""}`} onClick={() => setShell("LIVE")}>Live</button>
-                    <button className={`btn sm ${shell === "BLANK" ? "on-blank" : ""}`} onClick={() => setShell("BLANK")}>Blank</button>
-                  </div>
+                  <ShellPick value={shell} onPick={setShell} />
                 </div>
               </>
             )}
             {meta?.needsMed && (
               <div className="field">
                 <div className="mini">Expired Medicine result</div>
-                <div className="acts" style={{ justifyContent: "flex-start" }}>
+                <div className="acts">
                   <button className={`btn sm ${medDelta === 2 ? "primary" : ""}`} onClick={() => setMedDelta(2)}>Healed 2</button>
-                  <button className={`btn sm ${medDelta === -1 ? "live" : ""}`} onClick={() => setMedDelta(-1)}>Lost 1</button>
+                  <button className={`btn sm ${medDelta === -1 ? "primary" : ""}`} onClick={() => setMedDelta(-1)}>Lost 1</button>
                 </div>
               </div>
             )}
-            <div className="acts" style={{ justifyContent: "flex-start" }}>
+            <div className="acts">
               <button className="btn primary" disabled={!ready} onClick={useItem}>Apply</button>
               <button className="btn ghost" onClick={reset}>Cancel</button>
             </div>
           </div>
         )}
       </div></div>
-    </div>
-  );
-}
-
-function Stepper({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
-  return (
-    <div className="step">
-      <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label="decrease"><Minus size={13} /></button>
-      <span className="v">{value}</span>
-      <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label="increase"><Plus size={13} /></button>
     </div>
   );
 }
@@ -549,28 +687,6 @@ function ItemsBlock({ state, patch }: { state: GameStateDTO; patch: (p: Partial<
       <div className="invs">
         <ItemColumn title="You" icon={<Crosshair size={12} />} inv={state.player_items} onChange={(inv) => patch({ player_items: inv })} />
         <ItemColumn title="Dealer" icon={<Skull size={12} />} inv={state.enemy_items} onChange={(inv) => patch({ enemy_items: inv })} />
-      </div>
-    </div>
-  );
-}
-
-function ItemColumn({ title, icon, inv, onChange }: { title: string; icon: ReactNode; inv: Record<ItemName, number>; onChange: (inv: Record<ItemName, number>) => void }) {
-  const set = (item: ItemName, v: number) => onChange({ ...inv, [item]: Math.max(0, Math.min(8, v)) });
-  return (
-    <div>
-      <div className="inv-h">{icon}{title}</div>
-      <div className="inv">
-        {ITEM_NAMES.map((name) => (
-          <div className={`it ${inv[name] > 0 ? "on" : "off"}`} key={name}>
-            <span className="ii">{ITEM_META[name].icon}</span>
-            <span className="in">{ITEM_META[name].short}</span>
-            <div className="step">
-              <button onClick={() => set(name, inv[name] - 1)} disabled={inv[name] <= 0}><Minus size={11} /></button>
-              <span className="v">{inv[name]}</span>
-              <button onClick={() => set(name, inv[name] + 1)}><Plus size={11} /></button>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
