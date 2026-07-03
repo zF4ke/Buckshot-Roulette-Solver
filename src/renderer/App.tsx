@@ -144,6 +144,7 @@ export function App() {
   // value or get lost.
   const stateRef = useRef<GameStateDTO | null>(null);
   const editTimer = useRef<number | undefined>(undefined);
+  const levelTimer = useRef<number | undefined>(undefined);
 
   const runAnalyze = useCallback(async () => {
     try { setAnalysis(await window.solver.analyze(levelRef.current)); } catch (e) { setError(String(e)); }
@@ -184,7 +185,14 @@ export function App() {
     editTimer.current = window.setTimeout(() => { void syncEdit(); }, 90);
   }, [syncEdit]);
 
-  useEffect(() => { if (full) void runAnalyze(); }, [level]); // eslint-disable-line
+  // Re-analyze when strength changes, debounced so dragging the slider does not
+  // fire an analysis on every tick (the last one wins, at the latest level).
+  useEffect(() => {
+    if (!full) return;
+    if (levelTimer.current) window.clearTimeout(levelTimer.current);
+    levelTimer.current = window.setTimeout(() => { void runAnalyze(); }, 220);
+    return () => { if (levelTimer.current) window.clearTimeout(levelTimer.current); };
+  }, [level]); // eslint-disable-line
 
   const startGame = useCallback(async (s: GameStateDTO) => { await pushState(s); setMode("play"); }, [pushState]);
 
@@ -464,7 +472,7 @@ function EngineControl({ level, setLevel, analysis }: { level: number; setLevel:
           <h4>Engine strength</h4>
           <div className="lead">How hard the solver thinks before answering.</div>
           <div className="sliderrow">
-            <input className="range" type="range" min={1} max={10} value={level} onChange={(e) => setLevel(Number(e.target.value))} />
+            <input className="range" type="range" min={1} max={15} value={level} onChange={(e) => setLevel(Number(e.target.value))} />
             <span className="lvl">{level}</span>
           </div>
           <div className="ticks"><span>Fast</span><span>Recommended</span><span>Max</span></div>

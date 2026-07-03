@@ -41,9 +41,11 @@ class SearchConfig:
         self.time_budget_ms = time_budget_ms    # tecto de tempo por analise
 
 
-# Presets 1..10 para a barra "Inteligencia / Precisao".
+# Presets 1..15 para a barra "Inteligencia / Precisao".
 # Nivel baixo = raso e instantaneo; nivel alto = fundo e exato (mas sempre
-# dentro do orcamento de tempo).
+# dentro do orcamento de tempo). Acima de ~10 a profundidade ja cobre a maioria
+# das posicoes, por isso os niveis extra sobem sobretudo o orcamento de tempo,
+# so relevante em posicoes muito longas e cheias de itens.
 DIFFICULTY_PRESETS = {
     1: SearchConfig(depth=2, min_probability=0.02, time_budget_ms=60),
     2: SearchConfig(depth=3, min_probability=0.02, time_budget_ms=90),
@@ -55,11 +57,18 @@ DIFFICULTY_PRESETS = {
     8: SearchConfig(depth=28, min_probability=0.001, time_budget_ms=900),
     9: SearchConfig(depth=44, min_probability=0.0005, time_budget_ms=1200),
     10: SearchConfig(depth=64, min_probability=0.0, time_budget_ms=1600),
+    11: SearchConfig(depth=80, min_probability=0.0, time_budget_ms=2200),
+    12: SearchConfig(depth=96, min_probability=0.0, time_budget_ms=3000),
+    13: SearchConfig(depth=112, min_probability=0.0, time_budget_ms=4200),
+    14: SearchConfig(depth=136, min_probability=0.0, time_budget_ms=5800),
+    15: SearchConfig(depth=160, min_probability=0.0, time_budget_ms=8000),
 }
+
+MAX_LEVEL = 15
 
 
 def config_for_level(level):
-    level = max(1, min(10, int(level)))
+    level = max(1, min(MAX_LEVEL, int(level)))
     return DIFFICULTY_PRESETS[level]
 
 
