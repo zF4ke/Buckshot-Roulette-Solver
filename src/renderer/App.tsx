@@ -232,18 +232,40 @@ function Stepper({ value, min, max, onChange }: { value: number; min: number; ma
   );
 }
 
+// hearts that never overflow: wrap, and collapse to a count past 7
+function Hearts({ hp, max, size = 16 }: { hp: number; max?: number; size?: number }) {
+  const cap = Math.max(max ?? hp, 1);
+  if (cap > 7) {
+    return <div className="hearts"><span className="heart"><Heart size={size} fill="currentColor" /></span><span className="hcount num">×{hp}</span></div>;
+  }
+  return (
+    <div className="hearts">
+      {Array.from({ length: cap }).map((_, i) => <span key={i} className={`heart ${i < hp ? "" : "off"}`}><Heart size={size} fill={i < hp ? "currentColor" : "none"} /></span>)}
+    </div>
+  );
+}
+
+function LoadControls({ live, blank, onLive, onBlank }: { live: number; blank: number; onLive: (v: number) => void; onBlank: (v: number) => void }) {
+  return (
+    <div className="load">
+      <div className="loadunit"><span className="shellgfx xs live" /><span className="cl">Live</span><Stepper value={live} min={0} max={8} onChange={onLive} /></div>
+      <div className="loadunit"><span className="shellgfx xs blank" /><span className="cl">Blank</span><Stepper value={blank} min={0} max={8} onChange={onBlank} /></div>
+    </div>
+  );
+}
+
 function Segmented<T extends string | number>(
   { options, value, onChange }: { options: { value: T; label: string; icon?: ReactNode }[]; value: T; onChange: (v: T) => void }
 ) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [thumb, setThumb] = useState({ x: 0, w: 0 });
+  const [thumb, setThumb] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const idx = Math.max(0, options.findIndex((o) => o.value === value));
-  const measure = useCallback(() => { const el = refs.current[idx]; if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth }); }, [idx]);
+  const measure = useCallback(() => { const el = refs.current[idx]; if (el) setThumb({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }); }, [idx]);
   useLayoutEffect(() => { measure(); }, [measure, options.length]);
   useEffect(() => { window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure); }, [measure]);
   return (
     <div className="seg">
-      <div className="seg-thumb" style={{ transform: `translateX(${thumb.x}px)`, width: thumb.w }} />
+      <div className="seg-thumb" style={{ left: thumb.x, top: thumb.y, width: thumb.w, height: thumb.h }} />
       {options.map((o, i) => (
         <button key={String(o.value)} ref={(el) => { refs.current[i] = el; }} className={`seg-btn ${o.value === value ? "on" : ""}`} onClick={() => onChange(o.value)}>
           {o.icon}{o.label}
@@ -313,16 +335,13 @@ function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
             <div className="sec">
               <div className="sec-h">Charges</div>
               <div className="sec-row">
-                <HpCard you name="You" hp={d.player_hp} onHp={(v) => set({ player_hp: v, player_max_hp: Math.max(v, d.player_max_hp) })} />
-                <HpCard name="Dealer" hp={d.enemy_hp} onHp={(v) => set({ enemy_hp: v, enemy_max_hp: Math.max(v, d.enemy_max_hp) })} />
+                <HpCard you name="You" hp={d.player_hp} onHp={(v) => set({ player_hp: v, player_max_hp: v })} />
+                <HpCard name="Dealer" hp={d.enemy_hp} onHp={(v) => set({ enemy_hp: v, enemy_max_hp: v })} />
               </div>
             </div>
             <div className="sec">
               <div className="sec-h">The load</div>
-              <div className="load">
-                <div className="c"><span className="pip-dot l" /><span className="cl">Live</span><Stepper value={d.live_shells} min={0} max={8} onChange={(v) => set({ live_shells: v })} /></div>
-                <div className="c"><span className="pip-dot b" /><span className="cl">Blank</span><Stepper value={d.blank_shells} min={0} max={8} onChange={(v) => set({ blank_shells: v })} /></div>
-              </div>
+              <LoadControls live={d.live_shells} blank={d.blank_shells} onLive={(v) => set({ live_shells: v })} onBlank={(v) => set({ blank_shells: v })} />
               <div className="load-preview">
                 {Array.from({ length: d.live_shells }).map((_, i) => <span key={"l" + i} className="shellgfx sm live" />)}
                 {Array.from({ length: d.blank_shells }).map((_, i) => <span key={"b" + i} className="shellgfx sm blank" />)}
@@ -366,11 +385,11 @@ function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
 function HpCard({ name, you, hp, onHp }: { name: string; you?: boolean; hp: number; onHp: (v: number) => void }) {
   return (
     <div className="hp-card">
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div className="hp-top">
         <div className="who-name">{you ? <Crosshair size={13} /> : <Skull size={13} />}{name}</div>
-        <div className="hearts">{Array.from({ length: Math.max(hp, 1) }).map((_, i) => <span key={i} className={`heart ${i < hp ? "" : "off"}`}><Heart size={14} fill={i < hp ? "currentColor" : "none"} /></span>)}</div>
+        <Stepper value={hp} min={1} max={12} onChange={onHp} />
       </div>
-      <Stepper value={hp} min={1} max={12} onChange={onHp} />
+      <Hearts hp={hp} size={15} />
     </div>
   );
 }
@@ -442,9 +461,7 @@ function Who({ name, you, act, hp, maxHp, onPick, onHp }: { name: string; you?: 
     <div className={`who ${act ? "act" : ""}`} onClick={onPick}>
       <div className="toact">To act</div>
       <div className="who-name">{you ? <Crosshair size={14} /> : <Skull size={14} />}{name}</div>
-      <div className="hearts">
-        {Array.from({ length: cap }).map((_, i) => <span key={i} className={`heart ${i < hp ? "" : "off"}`}><Heart size={17} fill={i < hp ? "currentColor" : "none"} /></span>)}
-      </div>
+      <Hearts hp={hp} max={cap} size={17} />
       <div className="who-hp" onClick={(e) => e.stopPropagation()}><span className="mini">HP</span><Stepper value={hp} min={0} max={12} onChange={onHp} /></div>
     </div>
   );
@@ -485,11 +502,21 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
               </>
             )}
           </div>
-          <div className="shells">
-            {Array.from({ length: total }).map((_, i) => {
-              const s = state.known_shells[i] ?? null;
-              return <div key={i} className={`shell ${s === "LIVE" ? "l" : s === "BLANK" ? "b" : ""} ${i === 0 ? "ch" : ""}`} onClick={() => cycle(i)} title={`Shell ${i + 1}, tap to mark`}><span className="n">{i + 1}</span></div>;
-            })}
+          <div className="tracker">
+            <div className="tracker-cap">Shell order, tap to log what you learn</div>
+            <div className="shells">
+              {Array.from({ length: total }).map((_, i) => {
+                const s = state.known_shells[i] ?? null;
+                const label = s === "LIVE" ? "live" : s === "BLANK" ? "blank" : "unknown";
+                const tip = `${i === 0 ? "Chamber (next shot)" : `Shell ${i + 1}`} is ${label}. Tap to cycle live, blank, unknown.`;
+                return (
+                  <div key={i} className={`shell ${s === "LIVE" ? "l" : s === "BLANK" ? "b" : ""} ${i === 0 ? "ch" : ""}`} onClick={() => cycle(i)} title={tip}>
+                    <span className="n">{i + 1}</span>
+                    {i === 0 && <span className="chtag">next</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
@@ -692,10 +719,7 @@ function LoadBlock({ state, patch }: { state: GameStateDTO; patch: (p: Partial<G
   return (
     <div>
       <div className="rail-h">Load</div>
-      <div className="load">
-        <div className="c"><span className="pip-dot l" /><span className="cl">Live</span><Stepper value={state.live_shells} min={0} max={8} onChange={(v) => patch({ live_shells: v })} /></div>
-        <div className="c"><span className="pip-dot b" /><span className="cl">Blank</span><Stepper value={state.blank_shells} min={0} max={8} onChange={(v) => patch({ blank_shells: v })} /></div>
-      </div>
+      <LoadControls live={state.live_shells} blank={state.blank_shells} onLive={(v) => patch({ live_shells: v })} onBlank={(v) => patch({ blank_shells: v })} />
     </div>
   );
 }
