@@ -132,14 +132,14 @@ class GameEngine:
             if event.shell is None:
                 raise ValueError("Beer precisa da bala removida.")
             state.remove_current_shell(event.shell)
-            state.saw_active = False
+            # Racking nao dispara: a serra continua ativa.
             return f"{self._actor_name(event.actor)} usou BEER e removeu {event.shell.name}"
 
         if item == ItemType.PHONE:
             if event.known_index is None or event.shell is None:
                 raise ValueError("Phone precisa de posicao e bala revelada.")
-            if event.known_index < 0:
-                raise ValueError("Posicao revelada invalida.")
+            if event.known_index < 1:
+                raise ValueError("Telemovel nunca revela a bala atual (posicao 1).")
             state.set_known_shell(event.known_index, event.shell)
             return (
                 f"{self._actor_name(event.actor)} usou PHONE e revelou "
@@ -243,7 +243,7 @@ class GameEngine:
             if event.shell is None:
                 raise ValueError("Beer roubada precisa da bala removida.")
             state.remove_current_shell(event.shell)
-            state.saw_active = False
+            # Racking nao dispara: a serra continua ativa.
             return f"BEER ({event.shell.name})"
 
         if item == ItemType.PHONE:

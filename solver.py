@@ -1,13 +1,17 @@
-from move_generator import MoveGenerator
+from search import Search, config_for_level
 
 
 class Solver:
 
     @staticmethod
-    def best_move(state):
-        moves = MoveGenerator.generate_moves(state)
+    def analyze(state, level=10):
+        """Lista ordenada de movimentos (melhor primeiro) para o turno atual."""
+        search = Search(config_for_level(level))
+        return search.analyze(state)
 
+    @staticmethod
+    def best_move(state, level=10):
+        moves = Solver.analyze(state, level=level)
         if not moves:
             return None
-
-        return max(moves, key=lambda move: move.expected_value)
+        return moves[0]

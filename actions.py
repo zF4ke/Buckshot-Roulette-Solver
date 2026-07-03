@@ -287,7 +287,8 @@ class Actions:
             if consume_active:
                 new_state.consume_item(ItemType.BEER)
             new_state.remove_current_shell(shell)
-            new_state.saw_active = False
+            # Racking com a cerveja ejeta a bala SEM disparar, por isso a serra
+            # (estado do cano) permanece ativa. So um disparo consome a serra.
 
             outcomes.append(
                 ActionOutcome(
@@ -302,9 +303,11 @@ class Actions:
 
     @staticmethod
     def _expand_phone(state, action, consume_active):
+        # O Telemovel nunca revela a bala na camara (posicao 0); apenas posicoes
+        # futuras (a "segunda bala" em diante, relativa a atual).
         unknown_positions = [
             index
-            for index in range(state.total_shells)
+            for index in range(1, state.total_shells)
             if index >= len(state.known_shells) or state.known_shells[index] is None
         ]
 

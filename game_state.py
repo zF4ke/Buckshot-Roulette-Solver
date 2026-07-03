@@ -1,5 +1,8 @@
-from copy import deepcopy
 from enums import ShellType, Turn, ItemType
+
+
+# Ordem estavel dos itens para gerar chaves e clones rapidos.
+_ITEM_ORDER = tuple(ItemType)
 
 
 class GameState:
@@ -43,7 +46,38 @@ class GameState:
         return Turn.ENEMY if self.turn == Turn.PLAYER else Turn.PLAYER
 
     def clone(self):
-        return deepcopy(self)
+        # Clone manual: ~10x mais rapido que deepcopy no caminho quente do solver.
+        new = GameState.__new__(GameState)
+        new.player_hp = self.player_hp
+        new.enemy_hp = self.enemy_hp
+        new.player_max_hp = self.player_max_hp
+        new.enemy_max_hp = self.enemy_max_hp
+        new.live_shells = self.live_shells
+        new.blank_shells = self.blank_shells
+        new.known_shells = list(self.known_shells)
+        new.player_items = dict(self.player_items)
+        new.enemy_items = dict(self.enemy_items)
+        new.turn = self.turn
+        new.saw_active = self.saw_active
+        new.handcuffed = self.handcuffed
+        return new
+
+    def key(self):
+        # Chave hashavel e barata para memoizacao (substitui md5+json).
+        return (
+            self.player_hp,
+            self.enemy_hp,
+            self.player_max_hp,
+            self.enemy_max_hp,
+            self.live_shells,
+            self.blank_shells,
+            tuple(s.value if s is not None else 0 for s in self.known_shells),
+            tuple(self.player_items[i] for i in _ITEM_ORDER),
+            tuple(self.enemy_items[i] for i in _ITEM_ORDER),
+            self.turn.value,
+            self.saw_active,
+            self.handcuffed.value if self.handcuffed is not None else 0,
+        )
 
     def active_inventory(self):
         return self.player_items if self.turn == Turn.PLAYER else self.enemy_items
