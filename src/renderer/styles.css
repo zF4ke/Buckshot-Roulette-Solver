@@ -251,17 +251,24 @@ select.sel { height: 40px; padding: 0 12px; border-radius: var(--r); border: 1px
 
 /* ---------------- item chips ---------------- */
 
-.chips { display: flex; flex-wrap: wrap; gap: 7px; }
-.chip { display: inline-flex; align-items: center; gap: 7px; height: 31px; padding: 0 13px; border-radius: var(--pill); border: 1px solid var(--line-2); background: var(--inset); color: var(--muted); cursor: pointer; font-size: 12.5px; font-weight: 600; transition: transform 130ms var(--spring), border-color 130ms var(--ease), background 130ms var(--ease), color 130ms var(--ease); }
-.chip.on { padding-right: 6px; }
+/* extra row gap leaves room for the corner count badge that overhangs the top */
+.chips { display: flex; flex-wrap: wrap; gap: 11px 9px; }
+/* pills stay content-sized (snug, no reserved space); the count lives in an
+   absolute corner badge so a chip's width never changes on click and rows stay put */
+.chip { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 31px; padding: 0 13px; border-radius: var(--pill); border: 1px solid var(--line-2); background: var(--inset); color: var(--muted); cursor: pointer; font-size: 12.5px; font-weight: 600; transition: transform 130ms var(--spring), border-color 130ms var(--ease), background 130ms var(--ease), color 130ms var(--ease); }
 .chip:hover { border-color: #50412f; color: var(--text); transform: translateY(-1px); }
 .chip:active { transform: scale(0.96); }
 .chip .chip-ic { display: inline-flex; }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .chip.on .chip-ic { color: var(--accent); }
-.chip-ct { font-family: var(--mono); font-weight: 700; color: var(--accent); }
-.chip-minus { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.25); color: var(--muted); }
-.chip-minus:hover { background: var(--accent); color: #fff; }
+.chip-ct { position: absolute; top: -7px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; box-sizing: border-box; border-radius: 9px; background: var(--accent); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 11px; line-height: 1; box-shadow: 0 0 0 2px var(--stage); cursor: pointer; transition: background 130ms var(--ease), transform 130ms var(--spring); }
+/* number and minus share one cell and crossfade: number by default, minus on hover */
+.chip-ct > * { grid-area: 1 / 1; transition: opacity 130ms var(--ease); }
+.chip-ct .chip-ct-x { opacity: 0; }
+.chip-ct:hover { background: var(--accent-2); }
+.chip-ct:hover .chip-ct-n { opacity: 0; }
+.chip-ct:hover .chip-ct-x { opacity: 1; }
+.chip-ct:active { transform: scale(0.88); }
 
 /* ---------------- load control ---------------- */
 

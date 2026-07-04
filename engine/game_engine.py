@@ -104,6 +104,10 @@ class GameEngine:
 
         if item == ItemType.MAGNIFIER:
             if event.shell is None:
+                # So o dealer pode espreitar sem que vejamos a bala; para o
+                # jogador, uma lupa sem bala observada e um evento invalido.
+                if event.actor == Turn.ENEMY:
+                    return f"{self._actor_name(event.actor)} usou MAGNIFIER"
                 raise ValueError("Magnifier precisa da bala observada.")
             state.set_known_shell(0, event.shell)
             return f"{self._actor_name(event.actor)} usou MAGNIFIER e viu {event.shell.name}"
@@ -111,6 +115,12 @@ class GameEngine:
         if item == ItemType.INVERTER:
             shell_before = event.shell or state.get_current_shell()
             if shell_before is None:
+                # Camara desconhecida. So o dealer inverte as cegas; uma inversao
+                # de uma bala que nao vemos nao e rastreavel com contagens exatas
+                # (viraria uma mistura probabilistica), por isso consumimos o item
+                # sem mexer nas contagens em vez de corromper o tracker.
+                if event.actor == Turn.ENEMY:
+                    return f"{self._actor_name(event.actor)} usou INVERTER"
                 raise ValueError("Inverter precisa da bala antes da inversao (se era desconhecida).")
 
             if shell_before == ShellType.LIVE:
@@ -137,6 +147,10 @@ class GameEngine:
 
         if item == ItemType.PHONE:
             if event.known_index is None or event.shell is None:
+                # So o dealer usa o telemovel sem que vejamos a posicao; para o
+                # jogador, faltar a posicao/bala e um evento invalido.
+                if event.actor == Turn.ENEMY:
+                    return f"{self._actor_name(event.actor)} usou PHONE"
                 raise ValueError("Phone precisa de posicao e bala revelada.")
             if event.known_index < 1:
                 raise ValueError("Telemovel nunca revela a bala atual (posicao 1).")
@@ -218,6 +232,8 @@ class GameEngine:
 
         if item == ItemType.MAGNIFIER:
             if event.shell is None:
+                if event.actor == Turn.ENEMY:
+                    return "MAGNIFIER"
                 raise ValueError("Magnifier roubado precisa da bala observada.")
             state.set_known_shell(0, event.shell)
             return f"MAGNIFIER ({event.shell.name})"
@@ -225,6 +241,8 @@ class GameEngine:
         if item == ItemType.INVERTER:
             shell_before = event.shell or state.get_current_shell()
             if shell_before is None:
+                if event.actor == Turn.ENEMY:
+                    return "INVERTER"
                 raise ValueError("Inverter roubado precisa da bala antes da inversao.")
 
             if shell_before == ShellType.LIVE:
@@ -248,7 +266,11 @@ class GameEngine:
 
         if item == ItemType.PHONE:
             if event.known_index is None or event.shell is None:
+                if event.actor == Turn.ENEMY:
+                    return "PHONE"
                 raise ValueError("Phone roubado precisa de posicao e bala.")
+            if event.known_index < 1:
+                raise ValueError("Telemovel nunca revela a bala atual (posicao 1).")
             state.set_known_shell(event.known_index, event.shell)
             return f"PHONE (pos {event.known_index + 1}={event.shell.name})"
 

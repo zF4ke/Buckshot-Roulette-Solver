@@ -23,13 +23,51 @@ Devolve-se sempre o resultado da iteracao completa mais profunda.
 import time
 
 from actions import Actions
-from enums import Turn
+from enums import ActionType, ItemType, Turn
 from evaluator import Evaluator
 from move import Move
 
 
 class _Timeout(Exception):
     """Sinaliza que o orcamento de tempo terminou a meio de uma iteracao."""
+
+
+def _items_used(move):
+    # Itens gastos na linha. Em empates de valor, preferir gastar menos itens
+    # evita sugerir usos inuteis (ex.: espreitar uma bala ja conhecida). Ao
+    # contrario do comprimento da linha, nao penaliza manter o turno: os disparos
+    # nao contam, so o uso de itens.
+    return sum(1 for a in move.action_sequence if a.action_type == ActionType.USE_ITEM)
+
+
+def _first_action_rank(move):
+    """
+    Ultimo desempate: entre linhas de igual valor E igual numero de itens gastos,
+    preferir recolher informacao (lupa/telemovel) antes de comprometer recursos
+    (serra). A serra e gasta em qualquer disparo, por isso serrar antes de
+    espreitar nunca e melhor e le-se mal; a espreitar-primeiro mostra-se primeiro.
+    So afeta a ordem apresentada, nunca a jogada escolhida por valor.
+    """
+    if not move.action_sequence:
+        return 1
+    first = move.action_sequence[0]
+    if first.action_type == ActionType.USE_ITEM:
+        if first.item in (ItemType.MAGNIFIER, ItemType.PHONE):
+            return 0
+        if first.item == ItemType.SAW:
+            return 2
+    return 1
+
+
+def _ordered(scored, maximizing):
+    # 1) valor (melhor primeiro); 2) menos itens gastos, para nao sugerir usos
+    #    desperdicados; 3) espreitar antes de serrar em empates.
+    scored.sort(key=lambda m: (
+        -m.expected_value if maximizing else m.expected_value,
+        _items_used(m),
+        _first_action_rank(m),
+    ))
+    return scored
 
 
 class SearchConfig:
@@ -148,9 +186,7 @@ class Search:
             line = self._principal_variation(state, action, depth)
             scored.append(Move(action_sequence=line or [action], expected_value=ev))
 
-        maximizing = state.turn == Turn.PLAYER
-        scored.sort(key=lambda move: move.expected_value, reverse=maximizing)
-        return scored
+        return _ordered(scored, state.turn == Turn.PLAYER)
 
     def _analyze_static(self, state, actions):
         scored = []
@@ -161,9 +197,7 @@ class Search:
             ev = sum(o.probability * Evaluator.evaluate(o.state) for o in outcomes)
             total_p = sum(o.probability for o in outcomes) or 1.0
             scored.append(Move(action_sequence=[action], expected_value=ev / total_p))
-        maximizing = state.turn == Turn.PLAYER
-        scored.sort(key=lambda move: move.expected_value, reverse=maximizing)
-        return scored
+        return _ordered(scored, state.turn == Turn.PLAYER)
 
     # ------------------------------------------------------------------
     # Nucleo expectimax

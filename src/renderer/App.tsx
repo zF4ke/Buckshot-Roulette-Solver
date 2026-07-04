@@ -83,13 +83,14 @@ const DEFAULT_STATE: GameStateDTO = {
   turn: "PLAYER", saw_active: false, handcuffed: null
 };
 
-// A new round is a shotgun reload: everything carries over (HP, items, whose
-// turn it is) and only the shell load resets, clearing the reload-cleared gun fx.
+// A new round is a shotgun reload: HP and items carry over, and the shell load
+// resets along with the reload-cleared gun fx. A fresh round starts on you (the
+// setup screen still lets you hand it to the dealer if a round opens that way).
 function nextRoundSeed(s: GameStateDTO): GameStateDTO {
   return {
     ...s,
     live_shells: 2, blank_shells: 2, known_shells: [],
-    saw_active: false, handcuffed: null
+    turn: "PLAYER", saw_active: false, handcuffed: null
   };
 }
 
@@ -444,11 +445,20 @@ function ItemChips({ inv, onChange }: { inv: Record<ItemName, number>; onChange:
       {ITEM_NAMES.map((n) => {
         const c = inv[n];
         return (
-          <button key={n} className={`chip ${c > 0 ? "on" : ""}`} onClick={() => set(n, c + 1)} title={`Add ${ITEM_META[n].label}`}>
+          <button key={n} className={`chip ${c > 0 ? "on" : ""}`} onClick={() => set(n, c + 1)}
+            title={c > 0 ? `${ITEM_META[n].label}: ${c}. Click to add one, click the number to remove one.` : `Add ${ITEM_META[n].label}`}>
             <span className="chip-ic">{ITEM_META[n].icon}</span>
             <span className="chip-nm">{ITEM_META[n].short}</span>
-            {c > 0 && <span className="chip-ct">{c}</span>}
-            {c > 0 && <span className="chip-minus" onClick={(e) => { e.stopPropagation(); set(n, c - 1); }}><Minus size={11} /></span>}
+            {/* Count sits in an absolutely-positioned corner badge so the pill stays
+                content-sized: its width never changes on click and chips never
+                reflow onto a new row. The badge crossfades to a minus on hover to
+                signal that clicking it removes one. */}
+            {c > 0 && (
+              <span className="chip-ct" title="Remove one" onClick={(e) => { e.stopPropagation(); set(n, c - 1); }}>
+                <span className="chip-ct-n">{c}</span>
+                <Minus className="chip-ct-x" size={12} strokeWidth={3} />
+              </span>
+            )}
           </button>
         );
       })}
@@ -780,17 +790,25 @@ function Actions({ state, applyEvent, undo, onNextRound, onNewGame, prefill, cle
   const meta = effItem ? ITEM_META[effItem] : null;
   const chamberKnown = state.known_shells[0] ?? null;
   const opponent: TurnName = actor === "PLAYER" ? "ENEMY" : "PLAYER";
+  // A magnifier/phone the dealer uses is a private peek: you can't see the shell,
+  // so there is nothing to enter; just log the use and read it off their next shot.
+  const blindReveal = !isPlayer && (effItem === "MAGNIFIER" || effItem === "PHONE");
+  // The dealer's inverter flips the chamber. If we know the chamber the engine
+  // flips it; if we don't, a blind flip can't be tracked exactly, so we log it
+  // with no shell and the engine leaves the counts alone. Either way, no prompt.
+  const dealerInverter = !isPlayer && effItem === "INVERTER";
+  const noShellInput = blindReveal || dealerInverter;
 
   const shoot = (target: TurnName, sh: "LIVE" | "BLANK") => { applyEvent({ actor, event_type: "SHOOT", target, shell: sh }); reset(); };
   const useItem = () => {
     const ev: EventDTO = { actor, event_type: "USE_ITEM", item: item as ItemName };
     if (item === "ADRENALINE") ev.target_item = adrTarget as ItemName;
-    if (meta?.needsShell) ev.shell = shell as "LIVE" | "BLANK";
-    if (meta?.needsPhone) { ev.known_index = phonePos - 1; ev.shell = shell as "LIVE" | "BLANK"; }
+    if (meta?.needsShell && !noShellInput) ev.shell = shell as "LIVE" | "BLANK";
+    if (meta?.needsPhone && !noShellInput) { ev.known_index = phonePos - 1; ev.shell = shell as "LIVE" | "BLANK"; }
     if (meta?.needsMed) ev.hp_delta = medDelta;
     applyEvent(ev); reset();
   };
-  const ready = Boolean(item) && !(item === "ADRENALINE" && !adrTarget) && !((meta?.needsShell || meta?.needsPhone) && !shell);
+  const ready = Boolean(item) && !(item === "ADRENALINE" && !adrTarget) && (noShellInput || !((meta?.needsShell || meta?.needsPhone) && !shell));
 
   return (
     <div className="call" style={{ gap: 12 }}>
@@ -831,13 +849,21 @@ function Actions({ state, applyEvent, undo, onNextRound, onNewGame, prefill, cle
               {stealable.length === 0 && <div className="hint">The dealer has nothing to steal.</div>}
             </div>
           )}
-          {meta?.needsShell && (
+          {blindReveal && (
+            <div className="hint">The dealer peeks privately, so there is no shell to record. You will see it when the dealer shoots.</div>
+          )}
+          {dealerInverter && (
+            <div className="hint">{chamberKnown
+              ? `Flipping the known chamber to ${chamberKnown === "LIVE" ? "a blank" : "live"}.`
+              : "A blind flip of an unknown chamber can't be tracked exactly, so it is logged without changing the counts."}</div>
+          )}
+          {meta?.needsShell && !noShellInput && (
             <div className="field">
               <div className="mini">{effItem === "INVERTER" ? "Chamber before flipping" : effItem === "BEER" ? "Shell ejected" : "Shell revealed"}</div>
               <ShellPick value={shell} onPick={setShell} />
             </div>
           )}
-          {meta?.needsPhone && (
+          {meta?.needsPhone && !noShellInput && (
             <>
               <div className="field">
                 <div className="mini">Position revealed (2 is next after the chamber)</div>
