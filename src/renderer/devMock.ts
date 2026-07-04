@@ -44,6 +44,7 @@ export const devMock: SolverApi = {
   async updateState(s: GameStateDTO) { current = s; return fullState(); },
   async applyEvent(_e: EventDTO) { return fullState(); },
   async undo() { return fullState(); },
-  async analyze(_level: number) { return analysis; },
-  async getState() { return fullState(); }
+  async analyze(level: number) { if (level >= 12) await new Promise((r) => setTimeout(r, 1800)); return analysis; },
+  async getState() { return fullState(); },
+  async cancel() { /* preview: nothing to cancel */ }
 };

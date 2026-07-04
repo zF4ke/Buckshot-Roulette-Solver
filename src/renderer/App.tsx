@@ -137,6 +137,7 @@ export function App() {
   const [level, setLevel] = useState(7);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [calculating, setCalculating] = useState(false);
   const levelRef = useRef(level);
   levelRef.current = level;
   const state = full?.state ?? null;
@@ -145,9 +146,32 @@ export function App() {
   const stateRef = useRef<GameStateDTO | null>(null);
   const editTimer = useRef<number | undefined>(undefined);
   const levelTimer = useRef<number | undefined>(undefined);
+  const calcTimer = useRef<number | undefined>(undefined);
+  const cancelling = useRef(false);
 
   const runAnalyze = useCallback(async () => {
-    try { setAnalysis(await window.solver.analyze(levelRef.current)); } catch (e) { setError(String(e)); }
+    cancelling.current = false;
+    // Only reveal the "calculating" overlay if the search actually runs long.
+    if (calcTimer.current) window.clearTimeout(calcTimer.current);
+    calcTimer.current = window.setTimeout(() => setCalculating(true), 280);
+    try {
+      const res = await window.solver.analyze(levelRef.current);
+      setAnalysis(res);
+    } catch (e) {
+      if (!cancelling.current) setError(String(e));
+    } finally {
+      if (calcTimer.current) window.clearTimeout(calcTimer.current);
+      setCalculating(false);
+    }
+  }, []);
+  const cancelAnalyze = useCallback(async () => {
+    cancelling.current = true;
+    if (calcTimer.current) window.clearTimeout(calcTimer.current);
+    setCalculating(false);
+    try { await window.solver.cancel(); } catch { /* ignore */ }
+    // Bring the freshly respawned engine back to the current state, ready for
+    // the next request. Keep whatever recommendation was already showing.
+    try { if (stateRef.current) await window.solver.updateState(stateRef.current); } catch { /* ignore */ }
   }, []);
   const commit = useCallback((res: FullState) => { stateRef.current = res.state; setFull(res); }, []);
 
@@ -190,7 +214,7 @@ export function App() {
   useEffect(() => {
     if (!full) return;
     if (levelTimer.current) window.clearTimeout(levelTimer.current);
-    levelTimer.current = window.setTimeout(() => { void runAnalyze(); }, 220);
+    levelTimer.current = window.setTimeout(() => { void runAnalyze(); }, 120);
     return () => { if (levelTimer.current) window.clearTimeout(levelTimer.current); };
   }, [level]); // eslint-disable-line
 
@@ -218,6 +242,20 @@ export function App() {
           </div>
         </div>
       )}
+      {calculating && <CalcOverlay onCancel={cancelAnalyze} level={level} />}
+    </div>
+  );
+}
+
+function CalcOverlay({ onCancel, level }: { onCancel: () => void; level: number }) {
+  return (
+    <div className="calc-scrim">
+      <div className="calc-box">
+        <div className="calc-title crt">CALCULATING</div>
+        <div className="calc-bar"><span /></div>
+        <div className="calc-sub">deep search at strength {level}</div>
+        <button className="btn" onClick={onCancel}><X size={14} />Cancel</button>
+      </div>
     </div>
   );
 }

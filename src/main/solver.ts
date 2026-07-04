@@ -141,6 +141,13 @@ export class SolverBridge {
     });
   }
 
+  // Stop an in-flight search. The engine's search loop is blocking, so the only
+  // way to interrupt it is to kill the process; the "exit" handler rejects the
+  // pending request and nulls the proc, and the next request respawns it.
+  cancel(): void {
+    this.proc?.kill();
+  }
+
   dispose(): void {
     this.proc?.kill();
     this.proc = null;

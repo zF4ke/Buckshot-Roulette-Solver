@@ -19,6 +19,9 @@ const api: SolverApi = {
   },
   getState(): Promise<FullState> {
     return ipcRenderer.invoke("solver:state") as Promise<FullState>;
+  },
+  cancel(): Promise<void> {
+    return ipcRenderer.invoke("solver:cancel") as Promise<void>;
   }
 };
 

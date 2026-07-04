@@ -105,6 +105,7 @@ export interface SolverApi {
   undo(): Promise<FullState>;
   analyze(level: number): Promise<AnalyzeResult>;
   getState(): Promise<FullState>;
+  cancel(): Promise<void>;
 }
 
 // Controlos da janela (barra de titulo personalizada).

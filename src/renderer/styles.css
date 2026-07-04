@@ -315,4 +315,17 @@ select.sel { height: 40px; padding: 0 12px; border-radius: var(--r); border: 1px
 .seg-btn:not(.on):hover { color: var(--text); }
 .setup-go { display: flex; justify-content: center; margin-top: 2px; }
 
+/* ---------------- calculating overlay ---------------- */
+
+.calc-scrim { position: fixed; inset: var(--tb) 0 0 0; z-index: 150; background: rgba(10,7,5,0.88); display: grid; place-items: center; animation: fade 150ms var(--ease); }
+.calc-scrim::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.28) 0 1px, transparent 1px 3px); opacity: 0.5; }
+.calc-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 30px 44px; }
+.calc-title { font-family: var(--dot); font-size: 32px; letter-spacing: 0.24em; color: var(--accent); }
+.calc-title::after { content: "_"; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.calc-bar { width: 260px; height: 14px; border: 1px solid var(--line-2); border-radius: 3px; overflow: hidden; background: var(--inset); }
+.calc-bar span { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--accent) 0 8px, rgba(230,72,47,0.22) 8px 16px); background-size: 16px 100%; animation: march 0.55s linear infinite; }
+@keyframes march { to { background-position: -16px 0; } }
+.calc-sub { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; } }

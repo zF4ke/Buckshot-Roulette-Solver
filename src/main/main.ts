@@ -60,6 +60,10 @@ ipcMain.handle("solver:state", async () => {
   return solverBridge.request("state", {});
 });
 
+ipcMain.handle("solver:cancel", async () => {
+  solverBridge.cancel();
+});
+
 ipcMain.on("win:minimize", (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
 ipcMain.on("win:maximize", (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
