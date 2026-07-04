@@ -486,6 +486,8 @@ function HpCard({ name, you, hp, onHp }: { name: string; you?: boolean; hp: numb
 
 // ----------------------------------------------------------------- engine control
 
+const MAX_LEVEL = 15;
+
 function EngineControl({ level, setLevel, analysis }: { level: number; setLevel: (n: number) => void; analysis: AnalyzeResult | null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -510,7 +512,7 @@ function EngineControl({ level, setLevel, analysis }: { level: number; setLevel:
           <h4>Engine strength</h4>
           <div className="lead">How hard the solver thinks before answering.</div>
           <div className="sliderrow">
-            <input className="range" type="range" min={1} max={15} value={level} onChange={(e) => setLevel(Number(e.target.value))} />
+            <input className="range" type="range" min={1} max={MAX_LEVEL} value={level} onChange={(e) => setLevel(Number(e.target.value))} />
             <span className="lvl">{level}</span>
           </div>
           <div className="ticks"><span>Fast</span><span>Recommended</span><span>Max</span></div>
@@ -519,7 +521,7 @@ function EngineControl({ level, setLevel, analysis }: { level: number; setLevel:
               <span className="d" />
               {exact
                 ? <span><b>Optimal.</b> Solved this position fully in {analysis.elapsed_ms} ms. A higher level will not change the move.</span>
-                : <span><b>Deep position.</b> Searched to depth {analysis.reached_depth} in {analysis.elapsed_ms} ms. Raise the level for a stronger move.</span>}
+                : <span><b>Deep position.</b> Searched to depth {analysis.reached_depth} in {analysis.elapsed_ms} ms. {level >= MAX_LEVEL ? "Too deep to solve exactly in the time budget; this is the best move found so far." : "Raise the level for a stronger move."}</span>}
             </div>
           )}
           <div className="explain">Higher digs deeper: <b>stronger but slower</b>. Most positions are solved perfectly even at a low level, so the number only matters in long, item heavy positions. <b>7 is a good default.</b></div>
