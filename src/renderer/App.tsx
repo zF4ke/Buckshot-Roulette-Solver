@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Beer, ChevronDown, ChevronRight, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill,
+  ArrowRight, Beer, ChevronDown, ChevronRight, Cigarette, Crosshair, Heart, Loader2, Lock, Minus, Phone, Pill,
   Play, Plus, RefreshCw, RotateCcw, Scissors, Search, SkipForward, Skull, Square, Syringe, Target,
-  Trophy, X, Zap
+  Trophy, Wand2, X, Zap
 } from "lucide-react";
 import type {
   AnalyzeResult, EventDTO, FullState, GameStateDTO, ItemName, MoveDTO, ShellName, TurnName
@@ -83,6 +83,16 @@ const DEFAULT_STATE: GameStateDTO = {
   turn: "PLAYER", saw_active: false, handcuffed: null
 };
 
+// A new round is a shotgun reload: everything carries over (HP, items, whose
+// turn it is) and only the shell load resets, clearing the reload-cleared gun fx.
+function nextRoundSeed(s: GameStateDTO): GameStateDTO {
+  return {
+    ...s,
+    live_shells: 2, blank_shells: 2, known_shells: [],
+    saw_active: false, handcuffed: null
+  };
+}
+
 function chamberInfo(s: GameStateDTO) {
   const known = s.known_shells[0] ?? null;
   let liveU = s.live_shells, blankU = s.blank_shells;
@@ -130,8 +140,16 @@ function cleanSummary(s: string): string {
 
 // ----------------------------------------------------------------- app
 
+// A pre-filled prompt handed from the "Play suggested" button to the Actions
+// panel, which owns the modals. A fresh object each time, so the panel re-opens
+// even when the same move is played twice.
+type Prefill = { kind: "shoot-self" | "shoot-enemy" | "item"; item?: ItemName; target_item?: ItemName };
+
 export function App() {
   const [mode, setMode] = useState<"setup" | "play">("setup");
+  const [seed, setSeed] = useState<GameStateDTO | null>(null);
+  const [variant, setVariant] = useState<"new" | "next">("new");
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [full, setFull] = useState<FullState | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzeResult | null>(null);
   const [level, setLevel] = useState(7);
@@ -219,6 +237,41 @@ export function App() {
   }, [level]); // eslint-disable-line
 
   const startGame = useCallback(async (s: GameStateDTO) => { await pushState(s); setMode("play"); }, [pushState]);
+  const newGame = useCallback(() => { setSeed(null); setVariant("new"); setAnalysis(null); setMode("setup"); }, []);
+  const nextRound = useCallback(() => {
+    const s = stateRef.current;
+    setSeed(s ? nextRoundSeed(s) : null);
+    setVariant("next"); setAnalysis(null); setMode("setup");
+  }, []);
+
+  // Play the engine's top recommendation. Outcomes the tracker doesn't already
+  // know (which shell fired, a revealed shell, a heal result) still need one tap,
+  // so those open the matching prompt pre-filled; the rest apply straight away.
+  const playSuggested = useCallback(() => {
+    if (!state) return;
+    const top = analysis?.moves?.[0];
+    if (!top) return;
+    const actor = state.turn;
+    const opponent: TurnName = actor === "PLAYER" ? "ENEMY" : "PLAYER";
+    const chamber = state.known_shells[0] ?? null;
+    const a = top.action;
+    if (a.type === "END_TURN") { void applyEvent({ actor, event_type: "END_TURN" }); return; }
+    if (a.type === "SHOOT_ENEMY" || a.type === "SHOOT_SELF") {
+      const target = a.type === "SHOOT_ENEMY" ? opponent : actor;
+      if (chamber) void applyEvent({ actor, event_type: "SHOOT", target, shell: chamber });
+      else setPrefill({ kind: a.type === "SHOOT_ENEMY" ? "shoot-enemy" : "shoot-self" });
+      return;
+    }
+    if (a.type === "USE_ITEM" && a.item) {
+      const stolen = a.item === "ADRENALINE" ? a.target_item : null;
+      const m = stolen ? ITEM_META[stolen] : ITEM_META[a.item];
+      const needsInput = Boolean(m.needsShell || m.needsPhone || m.needsMed) || (a.item === "ADRENALINE" && !stolen);
+      if (needsInput) { setPrefill({ kind: "item", item: a.item, target_item: stolen ?? undefined }); return; }
+      const ev: EventDTO = { actor, event_type: "USE_ITEM", item: a.item };
+      if (a.item === "ADRENALINE" && stolen) ev.target_item = stolen;
+      void applyEvent(ev);
+    }
+  }, [state, analysis, applyEvent]);
 
   return (
     <div className="app">
@@ -226,14 +279,14 @@ export function App() {
       {error && <div className="banner err"><Skull size={14} />{error}</div>}
 
       {mode === "setup" ? (
-        <Setup onDeal={startGame} />
+        <Setup onDeal={startGame} seed={seed ?? undefined} variant={variant} />
       ) : state && (
         <div className="main">
           <div className="stage">
             <Combatants state={state} patch={patch} />
             <Shotgun state={state} patch={patch} />
-            <Call analysis={analysis} state={state} busy={busy} />
-            <Actions state={state} applyEvent={applyEvent} undo={undo} onNewGame={() => setMode("setup")} />
+            <Call analysis={analysis} state={state} busy={busy} onPlay={playSuggested} onNewGame={newGame} />
+            <Actions state={state} applyEvent={applyEvent} undo={undo} onNextRound={nextRound} onNewGame={newGame} prefill={prefill} clearPrefill={() => setPrefill(null)} />
           </div>
           <div className="rail">
             <LoadBlock state={state} patch={patch} />
@@ -405,17 +458,18 @@ function ItemChips({ inv, onChange }: { inv: Record<ItemName, number>; onChange:
 
 // ----------------------------------------------------------------- setup / new game
 
-function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
-  const [d, setD] = useState<GameStateDTO>(() => ({ ...DEFAULT_STATE, player_items: emptyInv(), enemy_items: emptyInv(), known_shells: [] }));
+function Setup({ onDeal, seed, variant = "new" }: { onDeal: (s: GameStateDTO) => void; seed?: GameStateDTO; variant?: "new" | "next" }) {
+  const [d, setD] = useState<GameStateDTO>(() => seed ? { ...seed } : { ...DEFAULT_STATE, player_items: emptyInv(), enemy_items: emptyInv(), known_shells: [] });
   const set = (p: Partial<GameStateDTO>) => setD((prev) => ({ ...prev, ...p }));
   const total = d.live_shells + d.blank_shells;
+  const isNext = variant === "next";
 
   return (
     <div className="setup-wrap">
       <div className="setup">
         <div className="setup-title">
-          <h1 className="crt">New Game</h1>
-          <p>Enter what you can see at the start of the round, then deal.</p>
+          <h1 className="crt">{isNext ? "Next Round" : "New Game"}</h1>
+          <p>{isNext ? "HP and items stay. Enter the new shell load, then deal." : "Enter what you can see at the start of the round, then deal."}</p>
         </div>
 
         <div className="setup-cols">
@@ -465,7 +519,7 @@ function Setup({ onDeal }: { onDeal: (s: GameStateDTO) => void }) {
         </div>
 
         <div className="setup-go">
-          <button className="btn primary big" disabled={total === 0} onClick={() => onDeal(d)}><Play size={17} />Deal the round</button>
+          <button className="btn primary big" disabled={total === 0} onClick={() => onDeal(d)}><Play size={17} />{isNext ? "Start the round" : "Deal the round"}</button>
         </div>
       </div>
     </div>
@@ -624,7 +678,7 @@ function Shotgun({ state, patch }: { state: GameStateDTO; patch: (p: Partial<Gam
 
 // ----------------------------------------------------------------- the call
 
-function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state: GameStateDTO; busy: boolean }) {
+function Call({ analysis, state, busy, onPlay, onNewGame }: { analysis: AnalyzeResult | null; state: GameStateDTO; busy: boolean; onPlay: () => void; onNewGame: () => void }) {
   const isPlayer = state.turn === "PLAYER";
   const moves = analysis?.moves ?? [];
   const over = state.player_hp <= 0 || state.enemy_hp <= 0;
@@ -638,6 +692,9 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
         <div className="head">The Call</div>
         <div className={`banner ${state.enemy_hp <= 0 ? "win" : "warn"}`}>
           {state.enemy_hp <= 0 ? <><Trophy size={16} />Dealer is down. You take the round.</> : <><Skull size={16} />You are out of charges.</>}
+        </div>
+        <div className="over-acts">
+          <button className="btn primary" onClick={onNewGame}><RefreshCw size={15} />New game</button>
         </div>
       </div>
     );
@@ -670,6 +727,11 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
               ))}
             </div>
           )}
+          {isPlayer && (
+            <button className="btn primary play-move" onClick={onPlay}>
+              <Wand2 size={15} />Play best move
+            </button>
+          )}
         </>
       )}
     </div>
@@ -680,7 +742,7 @@ function Call({ analysis, state, busy }: { analysis: AnalyzeResult | null; state
 
 type Panel = null | "shoot-self" | "shoot-enemy" | "item";
 
-function Actions({ state, applyEvent, undo, onNewGame }: { state: GameStateDTO; applyEvent: (e: EventDTO) => void; undo: () => void; onNewGame: () => void }) {
+function Actions({ state, applyEvent, undo, onNextRound, onNewGame, prefill, clearPrefill }: { state: GameStateDTO; applyEvent: (e: EventDTO) => void; undo: () => void; onNextRound: () => void; onNewGame: () => void; prefill: Prefill | null; clearPrefill: () => void }) {
   const actor = state.turn;
   const isPlayer = actor === "PLAYER";
   const [panel, setPanel] = useState<Panel>(null);
@@ -691,6 +753,18 @@ function Actions({ state, applyEvent, undo, onNewGame }: { state: GameStateDTO; 
   const [adrTarget, setAdrTarget] = useState<ItemName | "">("");
   const reset = () => { setPanel(null); setItem(""); setShell(null); setPhonePos(2); setMedDelta(2); setAdrTarget(""); };
   useEffect(() => { reset(); }, [actor]); // eslint-disable-line
+
+  // "Play suggested" hands us a pre-filled prompt for outcomes it can't infer.
+  useEffect(() => {
+    if (!prefill) return;
+    reset();
+    if (prefill.kind === "item") {
+      setItem(prefill.item ?? "");
+      if (prefill.target_item) setAdrTarget(prefill.target_item);
+    }
+    setPanel(prefill.kind);
+    clearPrefill();
+  }, [prefill]); // eslint-disable-line
   useEffect(() => {
     if (!panel) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") reset(); };
@@ -726,6 +800,7 @@ function Actions({ state, applyEvent, undo, onNewGame }: { state: GameStateDTO; 
         <button className="btn" disabled={owned.length === 0} onClick={() => { reset(); setPanel("item"); }}><Zap size={16} />Use item</button>
         <button className="btn ghost" onClick={() => applyEvent({ actor, event_type: "END_TURN" })}><SkipForward size={15} />Pass</button>
         <button className="btn ghost" onClick={undo}><RotateCcw size={14} />Undo</button>
+        <button className="btn ghost" onClick={onNextRound}><ArrowRight size={14} />Next round</button>
         <button className="btn ghost" onClick={onNewGame}><RefreshCw size={14} />New game</button>
       </div>
 
