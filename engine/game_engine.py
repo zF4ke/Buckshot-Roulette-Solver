@@ -115,13 +115,11 @@ class GameEngine:
         if item == ItemType.INVERTER:
             shell_before = event.shell or state.get_current_shell()
             if shell_before is None:
-                # Camara desconhecida. So o dealer inverte as cegas; uma inversao
-                # de uma bala que nao vemos nao e rastreavel com contagens exatas
-                # (viraria uma mistura probabilistica), por isso consumimos o item
-                # sem mexer nas contagens em vez de corromper o tracker.
-                if event.actor == Turn.ENEMY:
-                    return f"{self._actor_name(event.actor)} usou INVERTER"
-                raise ValueError("Inverter precisa da bala antes da inversao (se era desconhecida).")
+                # Camara desconhecida. Inverter uma bala que ninguem (do nosso lado)
+                # conhece nao e rastreavel com contagens exatas (viraria uma mistura
+                # probabilistica), quem quer que a use. Consumimos o item sem mexer
+                # nas contagens, em vez de forcar um palpite que corromperia o tracker.
+                return f"{self._actor_name(event.actor)} usou INVERTER"
 
             if shell_before == ShellType.LIVE:
                 state.live_shells -= 1
@@ -241,9 +239,7 @@ class GameEngine:
         if item == ItemType.INVERTER:
             shell_before = event.shell or state.get_current_shell()
             if shell_before is None:
-                if event.actor == Turn.ENEMY:
-                    return "INVERTER"
-                raise ValueError("Inverter roubado precisa da bala antes da inversao.")
+                return "INVERTER"
 
             if shell_before == ShellType.LIVE:
                 state.live_shells -= 1

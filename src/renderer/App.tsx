@@ -793,11 +793,12 @@ function Actions({ state, applyEvent, undo, onNextRound, onNewGame, prefill, cle
   // A magnifier/phone the dealer uses is a private peek: you can't see the shell,
   // so there is nothing to enter; just log the use and read it off their next shot.
   const blindReveal = !isPlayer && (effItem === "MAGNIFIER" || effItem === "PHONE");
-  // The dealer's inverter flips the chamber. If we know the chamber the engine
-  // flips it; if we don't, a blind flip can't be tracked exactly, so we log it
-  // with no shell and the engine leaves the counts alone. Either way, no prompt.
-  const dealerInverter = !isPlayer && effItem === "INVERTER";
-  const noShellInput = blindReveal || dealerInverter;
+  // The inverter (yours or the dealer's) never asks for the pre-flip shell. If the
+  // chamber is known the engine flips it; if it's unknown, a blind flip can't be
+  // tracked exactly (nobody watching the tracker knows the shell), so it is logged
+  // without changing the counts. Either way, no prompt.
+  const inverterUse = effItem === "INVERTER";
+  const noShellInput = blindReveal || inverterUse;
 
   const shoot = (target: TurnName, sh: "LIVE" | "BLANK") => { applyEvent({ actor, event_type: "SHOOT", target, shell: sh }); reset(); };
   const useItem = () => {
@@ -852,14 +853,14 @@ function Actions({ state, applyEvent, undo, onNextRound, onNewGame, prefill, cle
           {blindReveal && (
             <div className="hint">The dealer peeks privately, so there is no shell to record. You will see it when the dealer shoots.</div>
           )}
-          {dealerInverter && (
+          {inverterUse && (
             <div className="hint">{chamberKnown
               ? `Flipping the known chamber to ${chamberKnown === "LIVE" ? "a blank" : "live"}.`
               : "A blind flip of an unknown chamber can't be tracked exactly, so it is logged without changing the counts."}</div>
           )}
           {meta?.needsShell && !noShellInput && (
             <div className="field">
-              <div className="mini">{effItem === "INVERTER" ? "Chamber before flipping" : effItem === "BEER" ? "Shell ejected" : "Shell revealed"}</div>
+              <div className="mini">{effItem === "BEER" ? "Shell ejected" : "Shell revealed"}</div>
               <ShellPick value={shell} onPick={setShell} />
             </div>
           )}
